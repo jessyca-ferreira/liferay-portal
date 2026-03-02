@@ -6263,11 +6263,41 @@
 	{
 		"classNames": [
 			"CPInstanceLocalService",
-			"CPInstanceLocalServiceUtil"
+			"CPInstanceLocalServiceUtil",
+			"CPInstanceService",
+			"CPInstanceServiceUtil"
 		],
 		"from": "fetchCPInstanceByExternalReferenceCode(long paramName, String paramName)",
 		"issueKey": "LPS-197965",
 		"to": "fetchCPInstanceByExternalReferenceCode(param#1#, param#0#)"
+	},
+	{
+		"classNames": [
+			"CPInstanceLocalService",
+			"CPInstanceLocalServiceUtil",
+			"CPInstanceService",
+			"CPInstanceServiceUtil"
+		],
+		"from": "regex:(?<variableName>CPInstance(?:Local)?ServiceUtil|_cpInstance(?:Local)?Service)\\.fetchByExternalReferenceCode\\(\\s*(?<companyId>[\\w.]+(?:\\(\\))?),\\s*(?<externalReferenceCode>\"[^\"]*\"|[\\w.]+(?:\\(\\))?)\\s*\\)",
+		"issueKey": "LPS-197965",
+		"to": "${variableName}.fetchCPInstanceByExternalReferenceCode(${externalReferenceCode}, ${companyId})",
+		"validExtensions": [
+			"jsp"
+		]
+	},
+	{
+		"classNames": [
+			"CPInstanceLocalService",
+			"CPInstanceLocalServiceUtil",
+			"CPInstanceService",
+			"CPInstanceServiceUtil"
+		],
+		"from": "regex:(?<variableName>CPInstance(?:Local)?ServiceUtil|_cpInstance(?:Local)?Service)\\.fetchCPInstanceByExternalReferenceCode\\(\\s*(?<companyId>\\w*[Cc]ompanyId|[\\w.]+\\.getCompanyId\\(\\)),\\s*(?<externalReferenceCode>\"[^\"]*\"|[\\w.]+(?:\\(\\))?)\\s*\\)",
+		"issueKey": "LPS-197965",
+		"to": "${variableName}.fetchCPInstanceByExternalReferenceCode(${externalReferenceCode}, ${companyId})",
+		"validExtensions": [
+			"jsp"
+		]
 	},
 	{
 		"classNames": [
