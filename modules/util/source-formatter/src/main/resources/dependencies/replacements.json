@@ -6256,18 +6256,28 @@
 			"CPInstanceService",
 			"CPInstanceServiceUtil"
 		],
-		"from": "fetchByExternalReferenceCode(long paramName, String paramName)",
+		"from": "regex:(?<variableName>\\w+)\\.fetchByExternalReferenceCode\\(\\s*(?<companyId>\\w*),\\s*(?<externalReferenceCode>\\w*(C|c)ode)\\)",
 		"issueKey": "LPS-197965",
-		"to": "fetchCPInstanceByExternalReferenceCode(param#1#, param#0#)"
+		"to": "${variableName}.fetchCPInstanceByExternalReferenceCode(${externalReferenceCode}, ${companyId})",
+		"validExtensions": [
+			"java",
+			"jsp"
+		]
 	},
 	{
 		"classNames": [
 			"CPInstanceLocalService",
-			"CPInstanceLocalServiceUtil"
+			"CPInstanceLocalServiceUtil",
+			"CPInstanceService",
+			"CPInstanceServiceUtil"
 		],
-		"from": "fetchCPInstanceByExternalReferenceCode(long paramName, String paramName)",
+		"from": "regex:(?<variableName>\\w+)\\.fetchCPInstanceByExternalReferenceCode\\(\\s*(?<companyId>\\w*),\\s*(?<externalReferenceCode>\\w*(C|c)ode)\\)",
 		"issueKey": "LPS-197965",
-		"to": "fetchCPInstanceByExternalReferenceCode(param#1#, param#0#)"
+		"to": "${variableName}.fetchCPInstanceByExternalReferenceCode(${externalReferenceCode}, ${companyId})",
+		"validExtensions": [
+			"java",
+			"jsp"
+		]
 	},
 	{
 		"classNames": [
