@@ -1,0 +1,20 @@
+<%--
+/**
+ * SPDX-FileCopyrightText: (c) 2026 Liferay, Inc. https://liferay.com
+ * SPDX-License-Identifier: LGPL-2.1-or-later OR LicenseRef-Liferay-DXP-EULA-2.0.0-2023-06
+ */
+--%>
+
+<%
+AccountEntryLocalServiceUtil.fetchByExternalReferenceCode(companyId, externalReferenceCode);
+CPInstanceLocalServiceUtil.fetchByExternalReferenceCode(companyId, externalReferenceCode);
+CPInstanceLocalServiceUtil.fetchByExternalReferenceCode(themeDisplay.getCompanyId(), "MY-ERC");
+CPInstanceLocalServiceUtil.fetchCPInstanceByExternalReferenceCode(companyId, externalReferenceCode);
+CPInstanceServiceUtil.fetchByExternalReferenceCode(companyId, externalReferenceCode);
+CPInstanceServiceUtil.fetchCPInstanceByExternalReferenceCode(companyId, externalReferenceCode);
+CPInstanceServiceUtil.fetchCPInstanceByExternalReferenceCode(themeDisplay.getCompanyId(), cpInstance.getExternalReferenceCode());
+_cpInstanceLocalService.fetchByExternalReferenceCode(companyId, externalReferenceCode);
+_cpInstanceLocalService.fetchCPInstanceByExternalReferenceCode(companyId, externalReferenceCode);
+_cpInstanceService.fetchByExternalReferenceCode(companyId, externalReferenceCode);
+_cpInstanceService.fetchCPInstanceByExternalReferenceCode(companyId, externalReferenceCode);
+%>
