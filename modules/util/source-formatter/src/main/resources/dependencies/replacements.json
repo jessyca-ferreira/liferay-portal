@@ -5310,6 +5310,19 @@
 		"to": "\"xml\""
 	},
 	{
+		"from": "regex:(?<variablePrefix>\\w*)preferences.substring\\(\\s*\\w+\\.indexOf\\(\\s*\"(?<key>\\w+)\"\\s*\\)\\s*\\)",
+		"issueKey": "LPD-61574",
+		"to": "${variablePrefix}preferences.getValue(\"${key}\", null)"
+	},
+	{
+		"from": "regex:String\\s+(?<declaredVariableName>\\w+)\\s*=\\s*(?<methodName>\\w+)\\.\\s*(get\\(\\s*(?<index>\\w+)\\s*\\)\\.\\s*getPreferences\\(\\s*\\))",
+		"issueKey": "LPD-61574",
+		"newImports": [
+			"com.liferay.portal.kernel.service.PortletPreferenceValueLocalServiceUtil"
+		],
+		"to": "PortletPreferences ${declaredVariableName} = PortletPreferenceValueLocalServiceUtil.getPreferences(${methodName}.get(${index}))"
+	},
+	{
 		"classNames": [
 			"JournalArticleLocalService",
 			"JournalArticleLocalServiceUtil",
