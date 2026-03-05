@@ -5461,6 +5461,25 @@
 		"to": "updateFileEntryAndCheckIn(param#0#, param#1#, param#2#, param#3#, null, param#4#, param#5#, param#6#, param#7#, param#8#, null, null, null, param#9#)"
 	},
 	{
+		"from": "regex:(?<tabs>\\t*)<(?<tag>[\\w\\s%]*(?![%/]>).*)(DLValidatorUtil|_?dlValidator)\\.getMaxAllowableSize\\(null\\)",
+		"issueKey": "LPD-58477",
+		"newImports": [
+			"com.liferay.document.library.kernel.exception.FileSizeException"
+		],
+		"to": "${tabs}<%\n${tabs}FileSizeException fileSizeException = (FileSizeException) errorException;\n${tabs}%>\n\n${tabs}<${tag}fileSizeException.getMaxSize()",
+		"validExtensions": [
+			"jsp"
+		]
+	},
+	{
+		"from": "regex:\\((?<exceptionVar>\\w*) instanceof FileSizeException\\) \\{(?<wrapper>[\\s\\S]*?)(DLValidatorUtil|_?dlValidator)\\.getMaxAllowableSize\\(null\\)",
+		"issueKey": "LPD-58477",
+		"to": "(${exceptionVar} instanceof FileSizeException fileSizeException\\) {${wrapper}fileSizeException.getMaxSize()",
+		"validExtensions": [
+			"java"
+		]
+	},
+	{
 		"classNames": [
 			"PropsKeys"
 		],
