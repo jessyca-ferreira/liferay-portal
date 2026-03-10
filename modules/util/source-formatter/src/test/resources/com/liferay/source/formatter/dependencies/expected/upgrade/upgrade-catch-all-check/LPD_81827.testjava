@@ -1,0 +1,34 @@
+/**
+ * SPDX-FileCopyrightText: (c) 2026 Liferay, Inc. https://liferay.com
+ * SPDX-License-Identifier: LGPL-2.1-or-later OR LicenseRef-Liferay-DXP-EULA-2.0.0-2023-06
+ */
+
+package com.liferay.source.formatter.dependencies.upgrade;
+
+import com.liferay.portal.workflow.comparator.WorkflowComparatorFactory;
+import com.liferay.portal.workflow.manager.WorkflowLogManager;
+
+import org.osgi.service.component.annotations.Reference;
+
+/**
+ * @author Jessyca Ferreira
+ */
+public class LPD_81827 {
+
+	public void method() {
+		List<WorkflowLog> workflowLogs =
+			_workflowLogManager.getWorkflowLogsByWorkflowInstance(
+				companyId, workflowInstanceId, logTypes, start, end,
+				orderByComparator);
+
+		OrderByComparator<WorkflowLog> orderByComparator =
+			_workflowComparatorFactory.getLogCreateDateComparator(false);
+	}
+
+	@Reference
+	private WorkflowComparatorFactory _workflowComparatorFactory;
+
+	@Reference
+	private WorkflowLogManager _workflowLogManager;
+
+}
