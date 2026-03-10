@@ -5578,6 +5578,30 @@
 		]
 	},
 	{
+		"from": "regex:(\t*)((?:<liferay-frontend:fieldset-group[^>]*>|(?!\\A)\\G))(?!.*LPD_80965_REPETITION_INVALIDATOR)(.*?)(\n+)",
+		"issueKey": "LPD-80965",
+		"to": "$1$2$3LPD_80965_REPETITION_INVALIDATOR$4\t",
+		"validExtensions": [
+			"jsp"
+		]
+	},
+	{
+		"from": "regex:(?<tabs>\t*)<liferay-frontend:fieldset-group[\\s\\S]*?>(?<innerContent>[\\s\\S]*?)</liferay-frontend:fieldset-group>",
+		"issueKey": "LPD-80965",
+		"to": "<div class=\"sheet\">\n${tabs}\t<div class=\"panel-group panel-group-flush\">${innerContent}</div>\n${tabs}</div>",
+		"validExtensions": [
+			"jsp"
+		]
+	},
+	{
+		"from": "regex:LPD_80965_REPETITION_INVALIDATOR",
+		"issueKey": "LPD-80965",
+		"to": "",
+		"validExtensions": [
+			"jsp"
+		]
+	},
+	{
 		"classNames": [
 			"AssetEntryLocalService",
 			"AssetEntryLocalServiceUtil"
