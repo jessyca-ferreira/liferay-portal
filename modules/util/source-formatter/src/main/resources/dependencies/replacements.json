@@ -5996,6 +5996,30 @@
 	},
 	{
 		"classNames": [
+			"WorkflowComparatorFactoryUtil"
+		],
+		"from": "regex:(?<varName>[\\w]*)\\.(?<methodName>[\\w]*)\\((?<paramList>[\\s\\S]*?)\\)",
+		"issueKey": "LPD-81827",
+		"newImports": [
+			"com.liferay.portal.workflow.comparator.WorkflowComparatorFactory"
+		],
+		"newReference": "WorkflowComparatorFactory _workflowComparatorFactory",
+		"to": "_workflowComparatorFactory.${methodName}(${paramList})"
+	},
+	{
+		"classNames": [
+			"WorkflowLogManagerUtil"
+		],
+		"from": "regex:(?<varName>[\\w]*)\\.(?<methodName>[\\w]*)\\((?<paramList>[\\s\\S]*?)\\)",
+		"issueKey": "LPD-81827",
+		"newImports": [
+			"com.liferay.portal.workflow.manager.WorkflowLogManager"
+		],
+		"newReference": "WorkflowLogManager _workflowLogManager",
+		"to": "_workflowLogManager.${methodName}(${paramList})"
+	},
+	{
+		"classNames": [
 			"CompanyLocalService",
 			"CompanyLocalServiceUtil",
 			"CompanyService",
