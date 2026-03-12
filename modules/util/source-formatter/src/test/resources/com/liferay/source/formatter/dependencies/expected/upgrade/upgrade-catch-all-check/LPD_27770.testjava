@@ -1,0 +1,21 @@
+/**
+ * SPDX-FileCopyrightText: (c) 2026 Liferay, Inc. https://liferay.com
+ * SPDX-License-Identifier: LGPL-2.1-or-later OR LicenseRef-Liferay-DXP-EULA-2.0.0-2023-06
+ */
+
+package com.liferay.source.formatter.dependencies.upgrade;
+
+/**
+ * @author Jessyca Ferreira
+ */
+public class LPD_27770 {
+
+	public void method() {
+		serviceContext.setModelPermissions(ModelPermissionsFactory.create(new String[] {ActionKeys.VIEW, ActionKeys.ADD_DISCUSSION}, null));
+
+		serviceContext.setModelPermissions(ModelPermissionsFactory.create(groupDefaultActions, new String[0]));
+
+		serviceContext.setModelPermissions(ModelPermissionsFactory.create(new String[] {ActionKeys.ADD_DISCUSSION}, guestDefaultActions));
+	}
+
+}
