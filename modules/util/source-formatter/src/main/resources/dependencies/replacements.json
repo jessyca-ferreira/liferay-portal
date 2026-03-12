@@ -2483,6 +2483,16 @@
 		]
 	},
 	{
+		"from": "regex:(?<varName>serviceContext|ServiceContextUtil)\\.setGroupPermissions\\([\t\\s ]*(?<groupPermissions>[^)]*)\\);\\s*(?<inBetweenContent>((?!\\.(setGroupPermissions|setModelPermissions)\\()[\\s\\S])*?)\\k<varName>\\.setGuestPermissions\\([\t\\s ]*(?<guestPermissions>[\\s\\S]*?)\\);",
+		"issueKey": "LPD-27770",
+		"to": "${inBetweenContent}${varName}.setModelPermissions(ModelPermissionsFactory.create(${groupPermissions}, ${guestPermissions}));"
+	},
+	{
+		"from": "regex:(?<varName>serviceContext|ServiceContextUtil)\\.setGroupPermissions\\([\t\\s ]*(?<groupPermissions>[\\s\\S]*?)\\)",
+		"issueKey": "LPD-27770",
+		"to": "${varName}.setModelPermissions(ModelPermissionsFactory.create(${groupPermissions}, null))"
+	},
+	{
 		"classNames": [
 			"BaseJSPDynamicInclude"
 		],
