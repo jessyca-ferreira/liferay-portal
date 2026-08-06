@@ -2575,6 +2575,11 @@
 		]
 	},
 	{
+		"from": "regex:add\\s*\\(\\s*SafeConsumer\\.ignore\\((?<element>[\\s\\S]*?) -> \\{(?<content>[\\s\\S]*?)\\}\\s*\\)\\s*\\);",
+		"issueKey": "LPD-27965",
+		"to": "add(${element} -> {${content}});"
+	},
+	{
 		"classNames": [
 			"BaseJSPDynamicInclude"
 		],
