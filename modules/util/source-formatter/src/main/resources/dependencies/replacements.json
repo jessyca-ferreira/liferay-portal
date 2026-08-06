@@ -3137,6 +3137,11 @@
 		"to": "addCompany(param#0#, param#1#, param#2#, param#3#, param#4#, param#5#, true, param#6#, param#7#, param#8#, param#9#, param#10#, param#11#)"
 	},
 	{
+		"from": "regex:_?\\w*FormInstanceRecordsDisplayContext\\.getDDMFormValues\\(\\s*(?<variableName>\\w*?[iI]nstanceRecord)\\s*\\)",
+		"issueKey": "LPD-28870",
+		"to": "${variableName}.getFormInstanceRecordVersion().getDDMFormValues()"
+	},
+	{
 		"from": "new CommerceCatalogCreateDateComparator()",
 		"issueKey": "LPD-29234",
 		"skipParametersValidation": true,
