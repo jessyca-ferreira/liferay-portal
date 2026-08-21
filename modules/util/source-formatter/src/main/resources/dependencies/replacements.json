@@ -6046,6 +6046,20 @@
 		"to": "_sites.updateLayoutSetPrototypesLinks"
 	},
 	{
+		"classNames": [
+			"CPDefinitionSpecificationOptionValueLocalService",
+			"CPDefinitionSpecificationOptionValueLocalServiceUtil",
+			"CPDefinitionSpecificationOptionValueService",
+			"CPDefinitionSpecificationOptionValueServiceUtil"
+		],
+		"from": "updateCPDefinitionSpecificationOptionValue(long paramName, long paramName, Map<Locale, String> paramName, double paramName, ServiceContext paramName)",
+		"issueKey": "LPD-99283",
+		"newImports": [
+			"com.liferay.petra.string.StringPool"
+		],
+		"to": "updateCPDefinitionSpecificationOptionValue(null, param#0#, param#1#, StringPool.BLANK, param#3#, param#2#, true, param#4#)"
+	},
+	{
 		"from": "regex:MultiVMPoolUtil\\s*.\\s*getPortalCache\\(\\s*(?<prefixMethodName>[\\s\\S]*?)\\)",
 		"issueKey": "LPS-153962",
 		"newImports": [
