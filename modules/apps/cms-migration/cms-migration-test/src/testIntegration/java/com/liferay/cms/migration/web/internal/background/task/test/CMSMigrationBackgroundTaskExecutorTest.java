@@ -36,8 +36,10 @@ import com.liferay.layout.test.util.LayoutTestUtil;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectEntryFolder;
 import com.liferay.object.model.ObjectField;
 import com.liferay.object.service.ObjectDefinitionLocalService;
+import com.liferay.object.service.ObjectEntryFolderLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.petra.string.StringBundler;
@@ -54,9 +56,11 @@ import com.liferay.portal.kernel.json.JSONUtil;
 import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.model.Layout;
 import com.liferay.portal.kernel.model.LayoutTypePortlet;
+import com.liferay.portal.kernel.model.ModelHintsUtil;
 import com.liferay.portal.kernel.portlet.PortletIdCodec;
 import com.liferay.portal.kernel.portletdisplaytemplate.PortletDisplayTemplateManager;
 import com.liferay.portal.kernel.repository.model.FileEntry;
+import com.liferay.portal.kernel.repository.model.Folder;
 import com.liferay.portal.kernel.service.CompanyLocalService;
 import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.service.LayoutLocalService;
@@ -253,8 +257,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 					"CMS_MIGRATION_BLOGS_ENTRY",
 					"CMS_MIGRATION_BLOGS_ENTRY_" + blogsEntry.getEntryId()));
 
-		Assert.assertEquals(
-			120000, readingTimeEntry.getReadingTime());
+		Assert.assertEquals(120000, readingTimeEntry.getReadingTime());
 	}
 
 	@Test
@@ -349,6 +352,41 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		}
 		finally {
 			_journalArticleLocalService.deleteArticle(_journalArticle);
+		}
+	}
+
+	@Test
+	public void testExecuteWithLongFolderNames() throws Exception {
+		int maxLength = ModelHintsUtil.getMaxLength(
+			ObjectEntryFolder.class.getName(), "name");
+
+		String name = RandomTestUtil.randomString(maxLength);
+
+		Folder folder1 = _dlAppLocalService.addFolder(
+			null, TestPropsValues.getUserId(), _group.getGroupId(),
+			DLFolderConstants.DEFAULT_PARENT_FOLDER_ID, name + "1",
+			StringPool.BLANK,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+		Folder folder2 = _dlAppLocalService.addFolder(
+			null, TestPropsValues.getUserId(), _group.getGroupId(),
+			DLFolderConstants.DEFAULT_PARENT_FOLDER_ID, name + "2",
+			StringPool.BLANK,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		for (Folder folder : new Folder[] {folder1, folder2}) {
+			ObjectEntryFolder objectEntryFolder =
+				_objectEntryFolderLocalService.
+					getObjectEntryFolderByExternalReferenceCode(
+						"CMS_MIGRATION_DL_FOLDER_" + folder.getFolderId(),
+						_depotEntry.getGroupId(), _group.getCompanyId());
+
+			String suffix = StringPool.DASH + folder.getFolderId();
+
+			Assert.assertEquals(
+				name.substring(0, maxLength - suffix.length()) + suffix,
+				objectEntryFolder.getName());
 		}
 	}
 
@@ -822,6 +860,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private ObjectDefinitionLocalService _objectDefinitionLocalService;
+
+	@Inject
+	private ObjectEntryFolderLocalService _objectEntryFolderLocalService;
 
 	@Inject
 	private ObjectEntryLocalService _objectEntryLocalService;
