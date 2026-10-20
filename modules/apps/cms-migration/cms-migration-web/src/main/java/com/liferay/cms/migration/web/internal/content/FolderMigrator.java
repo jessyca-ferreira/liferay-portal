@@ -16,7 +16,9 @@ import com.liferay.journal.service.JournalFolderLocalService;
 import com.liferay.object.constants.ObjectEntryFolderConstants;
 import com.liferay.object.model.ObjectEntryFolder;
 import com.liferay.object.service.ObjectEntryFolderLocalService;
+import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
+import com.liferay.portal.kernel.model.ModelHintsUtil;
 import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.LocaleUtil;
@@ -79,7 +81,7 @@ public class FolderMigrator {
 
 	private ObjectEntryFolder _getOrAddObjectEntryFolder(
 			CMSMigrationContext cmsMigrationContext, String description,
-			String externalReferenceCode, String name,
+			String externalReferenceCode, long folderId, String name,
 			long parentObjectEntryFolderId)
 		throws PortalException {
 
@@ -106,7 +108,8 @@ public class FolderMigrator {
 			HashMapBuilder.put(
 				LocaleUtil.getSiteDefault(), name
 			).build(),
-			name, cmsMigrationContext.getServiceContext());
+			_truncateName(cmsMigrationContext, folderId, name),
+			cmsMigrationContext.getServiceContext());
 	}
 
 	private ObjectEntryFolder _getRootObjectEntryFolder(
@@ -138,7 +141,8 @@ public class FolderMigrator {
 				cmsMigrationContext, dlFolder.getDescription(),
 				CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_DL_FOLDER +
 					dlFolder.getFolderId(),
-				dlFolder.getName(), parentObjectEntryFolderId);
+				dlFolder.getFolderId(), dlFolder.getName(),
+				parentObjectEntryFolderId);
 
 			cmsMigrationContext.addFolderId(
 				DLFolder.class.getName(), dlFolder.getFolderId(),
@@ -164,7 +168,8 @@ public class FolderMigrator {
 				CMSMigrationConstants.
 					EXTERNAL_REFERENCE_CODE_PREFIX_JOURNAL_FOLDER +
 						journalFolder.getFolderId(),
-				journalFolder.getName(), parentObjectEntryFolderId);
+				journalFolder.getFolderId(), journalFolder.getName(),
+				parentObjectEntryFolderId);
 
 			cmsMigrationContext.addFolderId(
 				JournalFolder.class.getName(), journalFolder.getFolderId(),
@@ -174,6 +179,26 @@ public class FolderMigrator {
 				cmsMigrationContext, journalFolder.getFolderId(),
 				objectEntryFolder.getObjectEntryFolderId());
 		}
+	}
+
+	private String _truncateName(
+		CMSMigrationContext cmsMigrationContext, long folderId, String name) {
+
+		int maxLength = ModelHintsUtil.getMaxLength(
+			ObjectEntryFolder.class.getName(), "name");
+
+		if (name.length() <= maxLength) {
+			return name;
+		}
+
+		cmsMigrationContext.getCMSMigrationReport(
+		).addWarning(
+			"Truncated the name of the folder " + name
+		);
+
+		String suffix = StringPool.DASH + folderId;
+
+		return name.substring(0, maxLength - suffix.length()) + suffix;
 	}
 
 	private static final Snapshot<DLFolderLocalService>
