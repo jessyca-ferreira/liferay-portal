@@ -167,7 +167,14 @@ public class ObjectDefinitionMigrator {
 
 		if (dlFileEntryType != null) {
 			fileEntryTypeId = dlFileEntryType.getFileEntryTypeId();
+
 			nameMap = dlFileEntryType.getNameMap();
+
+			if (Validator.isNull(nameMap.get(LocaleUtil.getSiteDefault()))) {
+				nameMap.put(
+					LocaleUtil.getSiteDefault(),
+					dlFileEntryType.getName(LocaleUtil.getSiteDefault()));
+			}
 		}
 
 		ObjectDefinition objectDefinition =
