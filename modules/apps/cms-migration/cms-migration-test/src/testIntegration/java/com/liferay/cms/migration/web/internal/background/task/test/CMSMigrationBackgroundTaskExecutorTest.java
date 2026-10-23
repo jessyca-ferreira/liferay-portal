@@ -17,8 +17,11 @@ import com.liferay.depot.model.DepotEntry;
 import com.liferay.depot.model.DepotEntryGroupRel;
 import com.liferay.depot.service.DepotEntryGroupRelLocalService;
 import com.liferay.depot.service.DepotEntryLocalService;
+import com.liferay.document.library.kernel.model.DLFileEntryType;
+import com.liferay.document.library.kernel.model.DLFileEntryTypeConstants;
 import com.liferay.document.library.kernel.model.DLFolderConstants;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
+import com.liferay.document.library.kernel.service.DLFileEntryTypeLocalService;
 import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTypeConstants;
 import com.liferay.dynamic.data.mapping.model.DDMForm;
 import com.liferay.dynamic.data.mapping.model.DDMStructure;
@@ -75,8 +78,10 @@ import com.liferay.portal.kernel.test.util.TestPropsValues;
 import com.liferay.portal.kernel.theme.ThemeDisplay;
 import com.liferay.portal.kernel.util.ArrayUtil;
 import com.liferay.portal.kernel.util.ContentTypes;
+import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.HashMapDictionaryBuilder;
+import com.liferay.portal.kernel.util.LocaleThreadLocal;
 import com.liferay.portal.kernel.util.LocaleUtil;
 import com.liferay.portal.kernel.util.Portal;
 import com.liferay.portal.kernel.util.PortletKeys;
@@ -97,6 +102,7 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -631,6 +637,60 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_getAssetPublisherPreferenceValue(layout, "enableReadingTime"));
 	}
 
+	@Test
+	public void testExecuteWithUntranslatedDLFileEntryTypeName()
+		throws Exception {
+
+		FileEntry fileEntry = _dlAppLocalService.addFileEntry(
+			null, TestPropsValues.getUserId(), _group.getGroupId(),
+			DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			RandomTestUtil.randomString() + ".txt", ContentTypes.TEXT_PLAIN,
+			RandomTestUtil.randomBytes(), null, null, null,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		DLFileEntryType dlFileEntryType =
+			_dlFileEntryTypeLocalService.getFileEntryType(
+				DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_BASIC_DOCUMENT);
+
+		String originalName = dlFileEntryType.getName();
+
+		dlFileEntryType.setNameMap(
+			HashMapBuilder.put(
+				LocaleUtil.US, DLFileEntryTypeConstants.NAME_BASIC_DOCUMENT
+			).build(),
+			LocaleUtil.US);
+
+		dlFileEntryType = _dlFileEntryTypeLocalService.updateDLFileEntryType(
+			dlFileEntryType);
+
+		Locale originalDefaultLocale = LocaleThreadLocal.getDefaultLocale();
+		Locale originalSiteDefaultLocale =
+			LocaleThreadLocal.getSiteDefaultLocale();
+
+		try {
+			LocaleThreadLocal.setDefaultLocale(LocaleUtil.SPAIN);
+			LocaleThreadLocal.setSiteDefaultLocale(LocaleUtil.SPAIN);
+
+			_assertSuccessful(_execute(_group.getGroupId(), false));
+		}
+		finally {
+			LocaleThreadLocal.setDefaultLocale(originalDefaultLocale);
+			LocaleThreadLocal.setSiteDefaultLocale(originalSiteDefaultLocale);
+
+			dlFileEntryType.setName(originalName);
+
+			_dlFileEntryTypeLocalService.updateDLFileEntryType(dlFileEntryType);
+		}
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DL_FILE_ENTRY_TYPE_0",
+			"CMS_MIGRATION_FILE_ENTRY_" + fileEntry.getFileEntryId());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertTrue(GetterUtil.getLong(values.get("file")) > 0);
+	}
+
 	private String _addJournalContentPortlet(
 			Layout layout, JournalArticle journalArticle)
 		throws Exception {
@@ -840,6 +900,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private DLAppLocalService _dlAppLocalService;
+
+	@Inject
+	private DLFileEntryTypeLocalService _dlFileEntryTypeLocalService;
 
 	@Inject
 	private FragmentEntryLinkLocalService _fragmentEntryLinkLocalService;
