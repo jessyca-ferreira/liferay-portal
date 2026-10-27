@@ -33,6 +33,7 @@ import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.language.Language;
 import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.GetterUtil;
+import com.liferay.portal.kernel.util.HtmlParserUtil;
 import com.liferay.portal.kernel.util.LocaleUtil;
 import com.liferay.portal.kernel.util.Validator;
 import com.liferay.portal.kernel.workflow.WorkflowConstants;
@@ -121,7 +122,8 @@ public class JournalArticleMigrator {
 
 		values.put(
 			CMSMigrationConstants.OBJECT_FIELD_NAME_DESCRIPTION + "_i18n",
-			LocalizedValuesUtil.toValues(descriptionMap, value -> value));
+			LocalizedValuesUtil.toValues(
+				descriptionMap, HtmlParserUtil::extractText));
 		values.put(
 			CMSMigrationConstants.OBJECT_FIELD_NAME_TITLE + "_i18n",
 			LocalizedValuesUtil.toValues(
