@@ -366,6 +366,44 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithHTMLDescription() throws Exception {
+		String description = RandomTestUtil.randomString();
+		Locale locale = LocaleUtil.getSiteDefault();
+
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			JournalArticleConstants.CLASS_NAME_ID_DEFAULT,
+			HashMapBuilder.put(
+				locale, RandomTestUtil.randomString()
+			).build(),
+			HashMapBuilder.put(
+				locale, "<p>" + description + "</p>"
+			).build(),
+			HashMapBuilder.put(
+				locale, RandomTestUtil.randomString()
+			).build(),
+			locale, false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DDM_STRUCTURE_" +
+				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
+				_journalArticle.getResourcePrimKey());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				LocaleUtil.toLanguageId(locale), description
+			).build(),
+			values.get("description_i18n"));
+	}
+
+	@Test
 	public void testExecuteWithLongFolderNames() throws Exception {
 		int maxLength = ModelHintsUtil.getMaxLength(
 			ObjectEntryFolder.class.getName(), "name");
