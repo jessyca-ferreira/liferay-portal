@@ -29,6 +29,7 @@ import com.liferay.dynamic.data.mapping.test.util.DDMFormTestUtil;
 import com.liferay.dynamic.data.mapping.test.util.DDMStructureTestUtil;
 import com.liferay.fragment.model.FragmentEntryLink;
 import com.liferay.fragment.service.FragmentEntryLinkLocalService;
+import com.liferay.journal.constants.JournalArticleConstants;
 import com.liferay.journal.constants.JournalContentPortletKeys;
 import com.liferay.journal.constants.JournalFolderConstants;
 import com.liferay.journal.model.JournalArticle;
@@ -56,6 +57,7 @@ import com.liferay.portal.kernel.backgroundtask.constants.BackgroundTaskConstant
 import com.liferay.portal.kernel.json.JSONFactoryUtil;
 import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.json.JSONUtil;
+import com.liferay.portal.kernel.language.LanguageUtil;
 import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.model.Layout;
 import com.liferay.portal.kernel.model.LayoutTypePortlet;
@@ -71,6 +73,7 @@ import com.liferay.portal.kernel.service.PortletPreferencesLocalService;
 import com.liferay.portal.kernel.service.ServiceContext;
 import com.liferay.portal.kernel.test.rule.AggregateTestRule;
 import com.liferay.portal.kernel.test.rule.DeleteAfterTestRun;
+import com.liferay.portal.kernel.test.util.CompanyTestUtil;
 import com.liferay.portal.kernel.test.util.GroupTestUtil;
 import com.liferay.portal.kernel.test.util.RandomTestUtil;
 import com.liferay.portal.kernel.test.util.ServiceContextTestUtil;
@@ -105,6 +108,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -638,6 +642,82 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithUnavailableDefaultLanguage() throws Exception {
+		Map<Locale, String> contentMap = HashMapBuilder.put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+		Map<Locale, String> descriptionMap = HashMapBuilder.put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+		Map<Locale, String> titleMap = HashMapBuilder.put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+
+		ObjectEntry objectEntry = _migrateWithUnavailableDefaultLanguage(
+			contentMap, descriptionMap, titleMap);
+
+		Assert.assertEquals("es_ES", objectEntry.getDefaultLanguageId());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				"es_ES", contentMap.get(LocaleUtil.US)
+			).build(),
+			values.get("content_i18n"));
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				"es_ES", descriptionMap.get(LocaleUtil.US)
+			).build(),
+			values.get("description_i18n"));
+
+		Assert.assertEquals(
+			titleMap.get(LocaleUtil.US), objectEntry.getTitleValue("es_ES"));
+	}
+
+	@Test
+	public void testExecuteWithUnavailableDefaultLanguageAndTranslation()
+		throws Exception {
+
+		Map<Locale, String> contentMap = HashMapBuilder.put(
+			LocaleUtil.SPAIN, RandomTestUtil.randomString()
+		).put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+		Map<Locale, String> descriptionMap = HashMapBuilder.put(
+			LocaleUtil.SPAIN, RandomTestUtil.randomString()
+		).put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+		Map<Locale, String> titleMap = HashMapBuilder.put(
+			LocaleUtil.SPAIN, RandomTestUtil.randomString()
+		).put(
+			LocaleUtil.US, RandomTestUtil.randomString()
+		).build();
+
+		ObjectEntry objectEntry = _migrateWithUnavailableDefaultLanguage(
+			contentMap, descriptionMap, titleMap);
+
+		Assert.assertEquals("es_ES", objectEntry.getDefaultLanguageId());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				"es_ES", contentMap.get(LocaleUtil.SPAIN)
+			).build(),
+			values.get("content_i18n"));
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				"es_ES", descriptionMap.get(LocaleUtil.SPAIN)
+			).build(),
+			values.get("description_i18n"));
+
+		Assert.assertEquals(
+			titleMap.get(LocaleUtil.SPAIN), objectEntry.getTitleValue("es_ES"));
+	}
+
+	@Test
 	public void testExecuteWithUntranslatedDDMStructureName() throws Exception {
 		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
 			_group.getGroupId(), JournalArticle.class.getName());
@@ -855,6 +935,46 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return _objectEntryLocalService.getObjectEntry(
 			objectEntryExternalReferenceCode, _depotEntry.getGroupId(),
 			objectDefinition.getObjectDefinitionId());
+	}
+
+	private ObjectEntry _migrateWithUnavailableDefaultLanguage(
+			Map<Locale, String> contentMap, Map<Locale, String> descriptionMap,
+			Map<Locale, String> titleMap)
+		throws Exception {
+
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			JournalArticleConstants.CLASS_NAME_ID_DEFAULT, titleMap,
+			descriptionMap, contentMap, LocaleUtil.US, false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		Set<Locale> availableLocales = LanguageUtil.getCompanyAvailableLocales(
+			_group.getCompanyId());
+		Locale defaultLocale = LocaleUtil.getDefault();
+		Locale originalDefaultLocale = LocaleThreadLocal.getDefaultLocale();
+
+		try {
+			CompanyTestUtil.resetCompanyLocales(
+				_group.getCompanyId(),
+				Collections.singletonList(LocaleUtil.SPAIN), LocaleUtil.SPAIN);
+
+			LocaleThreadLocal.setDefaultLocale(LocaleUtil.SPAIN);
+
+			_assertSuccessful(_execute(_group.getGroupId(), false));
+		}
+		finally {
+			LocaleThreadLocal.setDefaultLocale(originalDefaultLocale);
+
+			CompanyTestUtil.resetCompanyLocales(
+				_group.getCompanyId(), availableLocales, defaultLocale);
+		}
+
+		return _getObjectEntry(
+			"CMS_MIGRATION_DDM_STRUCTURE_" +
+				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
+				_journalArticle.getResourcePrimKey());
 	}
 
 	private String _renderAssetPublisherWidgetTemplate(
