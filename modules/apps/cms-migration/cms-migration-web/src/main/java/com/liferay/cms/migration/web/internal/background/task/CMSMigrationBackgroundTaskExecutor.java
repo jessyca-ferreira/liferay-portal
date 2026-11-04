@@ -332,7 +332,8 @@ public class CMSMigrationBackgroundTaskExecutor
 					_siteNavigationMenuLocalService);
 
 		TemplateMigrator templateMigrator = new TemplateMigrator(
-			_ddmTemplateLocalService, _portal, _templateEntryLocalService);
+			_ddmTemplateLocalService, infoItemReferenceMapper, _portal,
+			_templateEntryLocalService);
 
 		return new CMSMigrationManager(
 			_assetEntryLocalService, assetListEntryReferenceRewriter,
