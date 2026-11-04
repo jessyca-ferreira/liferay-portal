@@ -15,7 +15,6 @@ import com.liferay.petra.string.StringBundler;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.language.Language;
 import com.liferay.portal.kernel.model.User;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.service.ServiceContext;
 import com.liferay.portal.kernel.service.UserLocalService;
 import com.liferay.portal.kernel.util.MapUtil;
@@ -40,6 +39,18 @@ import java.util.TreeSet;
  * @author Lino Alves
  */
 public class ObjectEntryWriter {
+
+	public ObjectEntryWriter(
+		AssetEntryLocalService assetEntryLocalService, Language language,
+		ObjectEntryLocalService objectEntryLocalService, Portal portal,
+		UserLocalService userLocalService) {
+
+		_assetEntryLocalService = assetEntryLocalService;
+		_language = language;
+		_objectEntryLocalService = objectEntryLocalService;
+		_portal = portal;
+		_userLocalService = userLocalService;
+	}
 
 	public ObjectEntry write(
 			CMSMigrationContext cmsMigrationContext, String className,
@@ -211,26 +222,10 @@ public class ObjectEntryWriter {
 		return availableLocalizedValues;
 	}
 
-	private static final Snapshot<AssetEntryLocalService>
-		_assetEntryLocalServiceSnapshot = new Snapshot<>(
-			ObjectEntryWriter.class, AssetEntryLocalService.class);
-	private static final Snapshot<Language> _languageSnapshot = new Snapshot<>(
-		ObjectEntryWriter.class, Language.class);
-	private static final Snapshot<ObjectEntryLocalService>
-		_objectEntryLocalServiceSnapshot = new Snapshot<>(
-			ObjectEntryWriter.class, ObjectEntryLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		ObjectEntryWriter.class, Portal.class);
-	private static final Snapshot<UserLocalService> _userLocalServiceSnapshot =
-		new Snapshot<>(ObjectEntryWriter.class, UserLocalService.class);
-
-	private final AssetEntryLocalService _assetEntryLocalService =
-		_assetEntryLocalServiceSnapshot.get();
-	private final Language _language = _languageSnapshot.get();
-	private final ObjectEntryLocalService _objectEntryLocalService =
-		_objectEntryLocalServiceSnapshot.get();
-	private final Portal _portal = _portalSnapshot.get();
-	private final UserLocalService _userLocalService =
-		_userLocalServiceSnapshot.get();
+	private final AssetEntryLocalService _assetEntryLocalService;
+	private final Language _language;
+	private final ObjectEntryLocalService _objectEntryLocalService;
+	private final Portal _portal;
+	private final UserLocalService _userLocalService;
 
 }

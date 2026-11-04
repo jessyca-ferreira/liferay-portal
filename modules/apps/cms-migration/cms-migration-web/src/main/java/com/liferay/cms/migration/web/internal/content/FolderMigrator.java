@@ -19,7 +19,6 @@ import com.liferay.object.service.ObjectEntryFolderLocalService;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.model.ModelHintsUtil;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.LocaleUtil;
 
@@ -30,6 +29,16 @@ import com.liferay.portal.kernel.util.LocaleUtil;
  * @author Lino Alves
  */
 public class FolderMigrator {
+
+	public FolderMigrator(
+		DLFolderLocalService dlFolderLocalService,
+		JournalFolderLocalService journalFolderLocalService,
+		ObjectEntryFolderLocalService objectEntryFolderLocalService) {
+
+		_dlFolderLocalService = dlFolderLocalService;
+		_journalFolderLocalService = journalFolderLocalService;
+		_objectEntryFolderLocalService = objectEntryFolderLocalService;
+	}
 
 	public void migrateDLFolders(CMSMigrationContext cmsMigrationContext)
 		throws PortalException {
@@ -201,21 +210,8 @@ public class FolderMigrator {
 		return name.substring(0, maxLength - suffix.length()) + suffix;
 	}
 
-	private static final Snapshot<DLFolderLocalService>
-		_dlFolderLocalServiceSnapshot = new Snapshot<>(
-			FolderMigrator.class, DLFolderLocalService.class);
-	private static final Snapshot<JournalFolderLocalService>
-		_journalFolderLocalServiceSnapshot = new Snapshot<>(
-			FolderMigrator.class, JournalFolderLocalService.class);
-	private static final Snapshot<ObjectEntryFolderLocalService>
-		_objectEntryFolderLocalServiceSnapshot = new Snapshot<>(
-			FolderMigrator.class, ObjectEntryFolderLocalService.class);
-
-	private final DLFolderLocalService _dlFolderLocalService =
-		_dlFolderLocalServiceSnapshot.get();
-	private final JournalFolderLocalService _journalFolderLocalService =
-		_journalFolderLocalServiceSnapshot.get();
-	private final ObjectEntryFolderLocalService _objectEntryFolderLocalService =
-		_objectEntryFolderLocalServiceSnapshot.get();
+	private final DLFolderLocalService _dlFolderLocalService;
+	private final JournalFolderLocalService _journalFolderLocalService;
+	private final ObjectEntryFolderLocalService _objectEntryFolderLocalService;
 
 }

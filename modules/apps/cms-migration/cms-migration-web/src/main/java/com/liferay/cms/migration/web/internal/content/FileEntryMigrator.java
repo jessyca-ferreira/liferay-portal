@@ -36,7 +36,6 @@ import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.repository.model.FileVersion;
 import com.liferay.portal.kernel.util.ContentTypes;
@@ -62,6 +61,37 @@ import java.util.Objects;
  * @author Lino Alves
  */
 public class FileEntryMigrator {
+
+	public FileEntryMigrator(
+		AttachmentManager attachmentManager,
+		DDMFormValuesConverter ddmFormValuesConverter,
+		DDMStorageEngineManager ddmStorageEngineManager,
+		DDMStructureLocalService ddmStructureLocalService,
+		DLAppLocalService dlAppLocalService,
+		DLFileEntryLocalService dlFileEntryLocalService,
+		DLFileEntryMetadataLocalService dlFileEntryMetadataLocalService,
+		DLFileEntryTypeLocalService dlFileEntryTypeLocalService,
+		DLVideoExternalShortcutResolver dlVideoExternalShortcutResolver,
+		FriendlyURLEntryLocalService friendlyURLEntryLocalService,
+		ObjectDefinitionMigrator objectDefinitionMigrator,
+		ObjectEntryWriter objectEntryWriter,
+		ObjectFieldLocalService objectFieldLocalService, Portal portal) {
+
+		_attachmentManager = attachmentManager;
+		_ddmFormValuesConverter = ddmFormValuesConverter;
+		_ddmStorageEngineManager = ddmStorageEngineManager;
+		_ddmStructureLocalService = ddmStructureLocalService;
+		_dlAppLocalService = dlAppLocalService;
+		_dlFileEntryLocalService = dlFileEntryLocalService;
+		_dlFileEntryMetadataLocalService = dlFileEntryMetadataLocalService;
+		_dlFileEntryTypeLocalService = dlFileEntryTypeLocalService;
+		_dlVideoExternalShortcutResolver = dlVideoExternalShortcutResolver;
+		_friendlyURLEntryLocalService = friendlyURLEntryLocalService;
+		_objectDefinitionMigrator = objectDefinitionMigrator;
+		_objectEntryWriter = objectEntryWriter;
+		_objectFieldLocalService = objectFieldLocalService;
+		_portal = portal;
+	}
 
 	public int getCount(CMSMigrationContext cmsMigrationContext) {
 		return _dlFileEntryLocalService.getGroupFileEntriesCount(
@@ -365,67 +395,21 @@ public class FileEntryMigrator {
 	private static final Log _log = LogFactoryUtil.getLog(
 		FileEntryMigrator.class);
 
-	private static final Snapshot<AttachmentManager>
-		_attachmentManagerSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, AttachmentManager.class);
-	private static final Snapshot<DDMStorageEngineManager>
-		_ddmStorageEngineManagerSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DDMStorageEngineManager.class);
-	private static final Snapshot<DDMStructureLocalService>
-		_ddmStructureLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DDMStructureLocalService.class);
-	private static final Snapshot<DLAppLocalService>
-		_dlAppLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DLAppLocalService.class);
-	private static final Snapshot<DLFileEntryLocalService>
-		_dlFileEntryLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DLFileEntryLocalService.class);
-	private static final Snapshot<DLFileEntryMetadataLocalService>
-		_dlFileEntryMetadataLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DLFileEntryMetadataLocalService.class);
-	private static final Snapshot<DLFileEntryTypeLocalService>
-		_dlFileEntryTypeLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DLFileEntryTypeLocalService.class);
-	private static final Snapshot<DLVideoExternalShortcutResolver>
-		_dlVideoExternalShortcutResolverSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, DLVideoExternalShortcutResolver.class);
-	private static final Snapshot<FriendlyURLEntryLocalService>
-		_friendlyURLEntryLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, FriendlyURLEntryLocalService.class);
-	private static final Snapshot<ObjectFieldLocalService>
-		_objectFieldLocalServiceSnapshot = new Snapshot<>(
-			FileEntryMigrator.class, ObjectFieldLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		FileEntryMigrator.class, Portal.class);
-
-	private final AttachmentManager _attachmentManager =
-		_attachmentManagerSnapshot.get();
-	private final DDMFormValuesConverter _ddmFormValuesConverter =
-		new DDMFormValuesConverter();
-	private final DDMStorageEngineManager _ddmStorageEngineManager =
-		_ddmStorageEngineManagerSnapshot.get();
-	private final DDMStructureLocalService _ddmStructureLocalService =
-		_ddmStructureLocalServiceSnapshot.get();
-	private final DLAppLocalService _dlAppLocalService =
-		_dlAppLocalServiceSnapshot.get();
-	private final DLFileEntryLocalService _dlFileEntryLocalService =
-		_dlFileEntryLocalServiceSnapshot.get();
+	private final AttachmentManager _attachmentManager;
+	private final DDMFormValuesConverter _ddmFormValuesConverter;
+	private final DDMStorageEngineManager _ddmStorageEngineManager;
+	private final DDMStructureLocalService _ddmStructureLocalService;
+	private final DLAppLocalService _dlAppLocalService;
+	private final DLFileEntryLocalService _dlFileEntryLocalService;
 	private final DLFileEntryMetadataLocalService
-		_dlFileEntryMetadataLocalService =
-			_dlFileEntryMetadataLocalServiceSnapshot.get();
-	private final DLFileEntryTypeLocalService _dlFileEntryTypeLocalService =
-		_dlFileEntryTypeLocalServiceSnapshot.get();
+		_dlFileEntryMetadataLocalService;
+	private final DLFileEntryTypeLocalService _dlFileEntryTypeLocalService;
 	private final DLVideoExternalShortcutResolver
-		_dlVideoExternalShortcutResolver =
-			_dlVideoExternalShortcutResolverSnapshot.get();
-	private final FriendlyURLEntryLocalService _friendlyURLEntryLocalService =
-		_friendlyURLEntryLocalServiceSnapshot.get();
-	private final ObjectDefinitionMigrator _objectDefinitionMigrator =
-		new ObjectDefinitionMigrator();
-	private final ObjectEntryWriter _objectEntryWriter =
-		new ObjectEntryWriter();
-	private final ObjectFieldLocalService _objectFieldLocalService =
-		_objectFieldLocalServiceSnapshot.get();
-	private final Portal _portal = _portalSnapshot.get();
+		_dlVideoExternalShortcutResolver;
+	private final FriendlyURLEntryLocalService _friendlyURLEntryLocalService;
+	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
+	private final ObjectEntryWriter _objectEntryWriter;
+	private final ObjectFieldLocalService _objectFieldLocalService;
+	private final Portal _portal;
 
 }

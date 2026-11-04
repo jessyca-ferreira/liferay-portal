@@ -13,7 +13,6 @@ import com.liferay.object.model.ObjectField;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.portal.kernel.model.Image;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.service.ImageLocalService;
 import com.liferay.portal.kernel.util.FileUtil;
@@ -26,6 +25,18 @@ import java.io.InputStream;
  * @author Lino Alves
  */
 public class AttachmentCopier {
+
+	public AttachmentCopier(
+		AttachmentManager attachmentManager,
+		DLAppLocalService dlAppLocalService,
+		ImageLocalService imageLocalService,
+		ObjectFieldLocalService objectFieldLocalService) {
+
+		_attachmentManager = attachmentManager;
+		_dlAppLocalService = dlAppLocalService;
+		_imageLocalService = imageLocalService;
+		_objectFieldLocalService = objectFieldLocalService;
+	}
 
 	public long copy(
 		CMSMigrationContext cmsMigrationContext,
@@ -105,26 +116,9 @@ public class AttachmentCopier {
 		return fileEntry.getFileEntryId();
 	}
 
-	private static final Snapshot<AttachmentManager>
-		_attachmentManagerSnapshot = new Snapshot<>(
-			AttachmentCopier.class, AttachmentManager.class);
-	private static final Snapshot<DLAppLocalService>
-		_dlAppLocalServiceSnapshot = new Snapshot<>(
-			AttachmentCopier.class, DLAppLocalService.class);
-	private static final Snapshot<ImageLocalService>
-		_imageLocalServiceSnapshot = new Snapshot<>(
-			AttachmentCopier.class, ImageLocalService.class);
-	private static final Snapshot<ObjectFieldLocalService>
-		_objectFieldLocalServiceSnapshot = new Snapshot<>(
-			AttachmentCopier.class, ObjectFieldLocalService.class);
-
-	private final AttachmentManager _attachmentManager =
-		_attachmentManagerSnapshot.get();
-	private final DLAppLocalService _dlAppLocalService =
-		_dlAppLocalServiceSnapshot.get();
-	private final ImageLocalService _imageLocalService =
-		_imageLocalServiceSnapshot.get();
-	private final ObjectFieldLocalService _objectFieldLocalService =
-		_objectFieldLocalServiceSnapshot.get();
+	private final AttachmentManager _attachmentManager;
+	private final DLAppLocalService _dlAppLocalService;
+	private final ImageLocalService _imageLocalService;
+	private final ObjectFieldLocalService _objectFieldLocalService;
 
 }

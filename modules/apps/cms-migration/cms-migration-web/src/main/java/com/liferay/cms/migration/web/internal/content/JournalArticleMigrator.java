@@ -31,7 +31,6 @@ import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.json.JSONFactory;
 import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.language.Language;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.HtmlParserUtil;
 import com.liferay.portal.kernel.util.LocaleUtil;
@@ -55,6 +54,28 @@ import java.util.Map;
  * @author Lino Alves
  */
 public class JournalArticleMigrator {
+
+	public JournalArticleMigrator(
+		AttachmentCopier attachmentCopier,
+		DDMFieldLocalService ddmFieldLocalService,
+		DDMFormValuesConverter ddmFormValuesConverter,
+		JournalArticleLocalService journalArticleLocalService,
+		JournalArticleResourceLocalService journalArticleResourceLocalService,
+		JSONFactory jsonFactory, Language language,
+		ObjectDefinitionMigrator objectDefinitionMigrator,
+		ObjectEntryWriter objectEntryWriter) {
+
+		_attachmentCopier = attachmentCopier;
+		_ddmFieldLocalService = ddmFieldLocalService;
+		_ddmFormValuesConverter = ddmFormValuesConverter;
+		_journalArticleLocalService = journalArticleLocalService;
+		_journalArticleResourceLocalService =
+			journalArticleResourceLocalService;
+		_jsonFactory = jsonFactory;
+		_language = language;
+		_objectDefinitionMigrator = objectDefinitionMigrator;
+		_objectEntryWriter = objectEntryWriter;
+	}
 
 	public List<JournalArticleResource> getJournalArticleResources(
 		CMSMigrationContext cmsMigrationContext) {
@@ -369,36 +390,15 @@ public class JournalArticleMigrator {
 
 	private static final int _TITLE_MAX_LENGTH = 280;
 
-	private static final Snapshot<DDMFieldLocalService>
-		_ddmFieldLocalServiceSnapshot = new Snapshot<>(
-			JournalArticleMigrator.class, DDMFieldLocalService.class);
-	private static final Snapshot<JournalArticleLocalService>
-		_journalArticleLocalServiceSnapshot = new Snapshot<>(
-			JournalArticleMigrator.class, JournalArticleLocalService.class);
-	private static final Snapshot<JournalArticleResourceLocalService>
-		_journalArticleResourceLocalServiceSnapshot = new Snapshot<>(
-			JournalArticleMigrator.class,
-			JournalArticleResourceLocalService.class);
-	private static final Snapshot<JSONFactory> _jsonFactorySnapshot =
-		new Snapshot<>(JournalArticleMigrator.class, JSONFactory.class);
-	private static final Snapshot<Language> _languageSnapshot = new Snapshot<>(
-		JournalArticleMigrator.class, Language.class);
-
-	private final AttachmentCopier _attachmentCopier = new AttachmentCopier();
-	private final DDMFieldLocalService _ddmFieldLocalService =
-		_ddmFieldLocalServiceSnapshot.get();
-	private final DDMFormValuesConverter _ddmFormValuesConverter =
-		new DDMFormValuesConverter();
-	private final JournalArticleLocalService _journalArticleLocalService =
-		_journalArticleLocalServiceSnapshot.get();
+	private final AttachmentCopier _attachmentCopier;
+	private final DDMFieldLocalService _ddmFieldLocalService;
+	private final DDMFormValuesConverter _ddmFormValuesConverter;
+	private final JournalArticleLocalService _journalArticleLocalService;
 	private final JournalArticleResourceLocalService
-		_journalArticleResourceLocalService =
-			_journalArticleResourceLocalServiceSnapshot.get();
-	private final JSONFactory _jsonFactory = _jsonFactorySnapshot.get();
-	private final Language _language = _languageSnapshot.get();
-	private final ObjectDefinitionMigrator _objectDefinitionMigrator =
-		new ObjectDefinitionMigrator();
-	private final ObjectEntryWriter _objectEntryWriter =
-		new ObjectEntryWriter();
+		_journalArticleResourceLocalService;
+	private final JSONFactory _jsonFactory;
+	private final Language _language;
+	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
+	private final ObjectEntryWriter _objectEntryWriter;
 
 }
