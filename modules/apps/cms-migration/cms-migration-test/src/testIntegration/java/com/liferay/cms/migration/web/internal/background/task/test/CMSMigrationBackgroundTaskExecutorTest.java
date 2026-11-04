@@ -436,6 +436,74 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithJournalArticlePriorityAndContentLinks()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"content", "content", DDMFormFieldTypeConstants.RICH_TEXT,
+				"html", true, false, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		JournalArticle linkedJournalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		String link = "/w/" + linkedJournalArticle.getUrlTitle();
+
+		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+			_group.getGroupId(),
+			DDMStructureTestUtil.getSampleStructuredContent(
+				"content",
+				Collections.singletonList(
+					HashMapBuilder.put(
+						LocaleUtil.US,
+						StringBundler.concat(
+							"<p><a href=\"", link, "\">",
+							RandomTestUtil.randomString(), "</a></p>")
+					).build()),
+				LocaleUtil.toLanguageId(LocaleUtil.US)),
+			ddmStructure.getStructureKey(), null);
+
+		AssetEntry assetEntry = _assetEntryLocalService.getEntry(
+			JournalArticle.class.getName(),
+			_journalArticle.getResourcePrimKey());
+
+		assetEntry.setPriority(2.5);
+
+		_assetEntryLocalService.updateAssetEntry(assetEntry);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DDM_STRUCTURE_" +
+				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
+				_journalArticle.getResourcePrimKey());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		for (Serializable value : values.values()) {
+			String valueString = String.valueOf(value);
+
+			Assert.assertFalse(valueString, valueString.contains(link));
+		}
+
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.getObjectDefinition(
+				objectEntry.getObjectDefinitionId());
+
+		assetEntry = _assetEntryLocalService.getEntry(
+			objectDefinition.getClassName(), objectEntry.getObjectEntryId());
+
+		Assert.assertEquals(2.5, assetEntry.getPriority(), 0);
+	}
+
+	@Test
 	public void testExecuteWithLongFolderNames() throws Exception {
 		int maxLength = ModelHintsUtil.getMaxLength(
 			ObjectEntryFolder.class.getName(), "name");
