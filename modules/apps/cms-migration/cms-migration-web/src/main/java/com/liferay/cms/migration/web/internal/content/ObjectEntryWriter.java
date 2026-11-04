@@ -81,6 +81,7 @@ public class ObjectEntryWriter {
 
 		if (assetEntry != null) {
 			serviceContext.setAssetCategoryIds(assetEntry.getCategoryIds());
+			serviceContext.setAssetPriority(assetEntry.getPriority());
 			serviceContext.setAssetTagNames(assetEntry.getTagNames());
 		}
 
