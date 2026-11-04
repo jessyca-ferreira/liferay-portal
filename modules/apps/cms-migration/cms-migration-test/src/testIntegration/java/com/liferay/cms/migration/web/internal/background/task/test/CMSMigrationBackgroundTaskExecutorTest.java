@@ -680,6 +680,67 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRewritePagesAndDisplayPageURL()
+		throws Exception {
+
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		Layout layout = LayoutTestUtil.addTypeContentLayout(_group);
+
+		FragmentEntryLink fragmentEntryLink =
+			ContentLayoutTestUtil.addFragmentEntryLinkToLayout(
+				JSONUtil.put(
+					"com.liferay.fragment.entry.processor.editable." +
+						"EditableFragmentEntryProcessor",
+					JSONUtil.put(
+						"element-link",
+						JSONUtil.put(
+							"config",
+							JSONUtil.put(
+								"classNameId",
+								String.valueOf(
+									_portal.getClassNameId(
+										JournalArticle.class))
+							).put(
+								"classPK",
+								String.valueOf(
+									_journalArticle.getResourcePrimKey())
+							).put(
+								"fieldId", "JournalArticle_displayPageURL"
+							)
+						).put(
+							"defaultValue", RandomTestUtil.randomString()
+						))
+				).toString(),
+				layout,
+				_segmentsExperienceLocalService.
+					fetchDefaultSegmentsExperienceId(layout.getPlid()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), true));
+
+		fragmentEntryLink = _fragmentEntryLinkLocalService.getFragmentEntryLink(
+			fragmentEntryLink.getFragmentEntryLinkId());
+
+		JSONObject editableValuesJSONObject = JSONFactoryUtil.createJSONObject(
+			fragmentEntryLink.getEditableValues());
+
+		JSONObject configJSONObject = editableValuesJSONObject.getJSONObject(
+			"com.liferay.fragment.entry.processor.editable." +
+				"EditableFragmentEntryProcessor"
+		).getJSONObject(
+			"element-link"
+		).getJSONObject(
+			"config"
+		);
+
+		Assert.assertEquals(
+			"ObjectEntry_displayPageURL",
+			configJSONObject.getString("fieldId"));
+	}
+
+	@Test
 	public void testExecuteWithUnavailableDefaultLanguage() throws Exception {
 		Map<Locale, String> contentMap = HashMapBuilder.put(
 			LocaleUtil.US, RandomTestUtil.randomString()
