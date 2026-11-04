@@ -278,8 +278,7 @@ public class ObjectDefinitionMigrator {
 				objectField.getListTypeDefinitionId(),
 				objectDefinition.getObjectDefinitionId(),
 				objectField.getBusinessType(), objectField.getDBType(),
-				Collections.emptyMap(), objectField.isIndexed(),
-				objectField.isIndexedAsKeyword(),
+				objectField.isIndexed(), objectField.isIndexedAsKeyword(),
 				objectField.getIndexedLanguageId(), objectField.getLabelMap(),
 				objectField.isLocalized(), objectField.getName(),
 				objectField.getReadOnly(),
@@ -604,10 +603,9 @@ public class ObjectDefinitionMigrator {
 		objectDefinition =
 			_objectDefinitionLocalService.addCustomObjectDefinition(
 				externalReferenceCode, cmsMigrationContext.getUserId(),
-				objectFolder.getObjectFolderId(), null, Collections.emptyMap(),
-				true, true, false, true, true, true, true, false, true, null,
-				labelMap, name, null, null, labelMap, false,
-				ObjectDefinitionConstants.SCOPE_DEPOT,
+				objectFolder.getObjectFolderId(), null, true, true, false, true,
+				true, true, true, false, true, null, labelMap, name, null, null,
+				labelMap, false, ObjectDefinitionConstants.SCOPE_DEPOT,
 				ObjectDefinitionConstants.STORAGE_TYPE_DEFAULT,
 				_getObjectDefinitionSettings(), objectFields,
 				Collections.emptyList(),

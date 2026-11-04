@@ -7,8 +7,8 @@ package com.liferay.cms.migration.web.internal.object.deployer;
 
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.cms.migration.web.internal.info.item.renderer.CMSMigrationInfoItemRenderer;
-import com.liferay.document.library.helper.DLURLHelper;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
+import com.liferay.document.library.util.DLURLHelper;
 import com.liferay.info.item.renderer.InfoItemRenderer;
 import com.liferay.object.deployer.ObjectDefinitionDeployer;
 import com.liferay.object.model.ObjectDefinition;

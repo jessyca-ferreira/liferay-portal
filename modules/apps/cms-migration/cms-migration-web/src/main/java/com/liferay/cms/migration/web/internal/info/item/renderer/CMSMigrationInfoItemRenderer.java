@@ -6,8 +6,8 @@
 package com.liferay.cms.migration.web.internal.info.item.renderer;
 
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
-import com.liferay.document.library.helper.DLURLHelper;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
+import com.liferay.document.library.util.DLURLHelper;
 import com.liferay.info.item.renderer.InfoItemRenderer;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.petra.string.StringBundler;
