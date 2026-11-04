@@ -72,6 +72,12 @@ public class CMSMigrationContext {
 			_getKey(className, folderId), objectEntryFolderId);
 	}
 
+	public void addInformationTemplateEntryId(
+		long templateEntryId, long newTemplateEntryId) {
+
+		_informationTemplateEntryIds.put(templateEntryId, newTemplateEntryId);
+	}
+
 	public void addLayoutPageTemplateEntryId(
 		long layoutPageTemplateEntryId, long newLayoutPageTemplateEntryId) {
 
@@ -127,6 +133,10 @@ public class CMSMigrationContext {
 
 	public long getDepotGroupId() {
 		return _depotGroup.getGroupId();
+	}
+
+	public long getInformationTemplateEntryId(long templateEntryId) {
+		return _informationTemplateEntryIds.getOrDefault(templateEntryId, 0L);
 	}
 
 	public long getLayoutPageTemplateEntryId(long layoutPageTemplateEntryId) {
@@ -253,6 +263,8 @@ public class CMSMigrationContext {
 	private final Group _depotGroup;
 	private UnsafeFunction<FileEntry, ObjectEntry, PortalException>
 		_fileEntryResolverUnsafeFunction;
+	private final Map<Long, Long> _informationTemplateEntryIds =
+		new HashMap<>();
 	private final Map<Long, Long> _layoutPageTemplateEntryIds = new HashMap<>();
 	private final boolean _migrateBlogsEntries;
 	private final boolean _migrateFileEntries;
