@@ -335,14 +335,15 @@ public class CMSMigrationBackgroundTaskExecutor
 			_ddmTemplateLocalService, _portal, _templateEntryLocalService);
 
 		return new CMSMigrationManager(
-			assetListEntryReferenceRewriter, blogsEntryMigrator,
-			cmsMigrationBackgroundTaskStatusMessageSender,
+			_assetEntryLocalService, assetListEntryReferenceRewriter,
+			blogsEntryMigrator, cmsMigrationBackgroundTaskStatusMessageSender,
 			_depotEntryGroupRelLocalService, displayPageTemplateMigrator,
 			fileEntryMigrator, folderMigrator, _groupLocalService,
 			htmlReferenceRewriter, journalArticleMigrator, _layoutLocalService,
-			layoutReferenceRewriter, _objectEntryLocalService,
-			_objectFieldLocalService, portletReferenceRewriter,
-			siteNavigationMenuItemReferenceRewriter, templateMigrator);
+			layoutReferenceRewriter, _objectDefinitionLocalService,
+			_objectEntryLocalService, _objectFieldLocalService,
+			portletReferenceRewriter, siteNavigationMenuItemReferenceRewriter,
+			templateMigrator);
 	}
 
 	@Reference

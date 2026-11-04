@@ -5,6 +5,8 @@
 
 package com.liferay.cms.migration.web.internal.migration;
 
+import com.liferay.asset.kernel.model.AssetEntry;
+import com.liferay.asset.kernel.service.AssetEntryLocalService;
 import com.liferay.cms.migration.web.internal.background.task.CMSMigrationBackgroundTaskStatusMessageSender;
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.cms.migration.web.internal.content.BlogsEntryMigrator;
@@ -21,8 +23,10 @@ import com.liferay.cms.migration.web.internal.template.TemplateMigrator;
 import com.liferay.depot.service.DepotEntryGroupRelLocalService;
 import com.liferay.document.library.kernel.model.DLFileEntry;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.object.model.ObjectField;
+import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.petra.string.StringBundler;
@@ -55,6 +59,7 @@ import java.util.Objects;
 public class CMSMigrationManager {
 
 	public CMSMigrationManager(
+		AssetEntryLocalService assetEntryLocalService,
 		AssetListEntryReferenceRewriter assetListEntryReferenceRewriter,
 		BlogsEntryMigrator blogsEntryMigrator,
 		CMSMigrationBackgroundTaskStatusMessageSender
@@ -67,6 +72,7 @@ public class CMSMigrationManager {
 		JournalArticleMigrator journalArticleMigrator,
 		LayoutLocalService layoutLocalService,
 		LayoutReferenceRewriter layoutReferenceRewriter,
+		ObjectDefinitionLocalService objectDefinitionLocalService,
 		ObjectEntryLocalService objectEntryLocalService,
 		ObjectFieldLocalService objectFieldLocalService,
 		PortletReferenceRewriter portletReferenceRewriter,
@@ -74,6 +80,7 @@ public class CMSMigrationManager {
 			siteNavigationMenuItemReferenceRewriter,
 		TemplateMigrator templateMigrator) {
 
+		_assetEntryLocalService = assetEntryLocalService;
 		_assetListEntryReferenceRewriter = assetListEntryReferenceRewriter;
 		_blogsEntryMigrator = blogsEntryMigrator;
 		_cmsMigrationBackgroundTaskStatusMessageSender =
@@ -87,6 +94,7 @@ public class CMSMigrationManager {
 		_journalArticleMigrator = journalArticleMigrator;
 		_layoutLocalService = layoutLocalService;
 		_layoutReferenceRewriter = layoutReferenceRewriter;
+		_objectDefinitionLocalService = objectDefinitionLocalService;
 		_objectEntryLocalService = objectEntryLocalService;
 		_objectFieldLocalService = objectFieldLocalService;
 		_portletReferenceRewriter = portletReferenceRewriter;
@@ -327,6 +335,19 @@ public class CMSMigrationManager {
 			(ServiceContext)cmsMigrationContext.getServiceContext(
 			).clone();
 
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.getObjectDefinition(
+				objectEntry.getObjectDefinitionId());
+
+		AssetEntry assetEntry = _assetEntryLocalService.fetchEntry(
+			objectDefinition.getClassName(), objectEntry.getObjectEntryId());
+
+		if (assetEntry != null) {
+			serviceContext.setAssetCategoryIds(assetEntry.getCategoryIds());
+			serviceContext.setAssetPriority(assetEntry.getPriority());
+			serviceContext.setAssetTagNames(assetEntry.getTagNames());
+		}
+
 		if (objectEntry.isApproved()) {
 			serviceContext.setWorkflowAction(WorkflowConstants.ACTION_PUBLISH);
 		}
@@ -392,6 +413,7 @@ public class CMSMigrationManager {
 			phase, total);
 	}
 
+	private final AssetEntryLocalService _assetEntryLocalService;
 	private final AssetListEntryReferenceRewriter
 		_assetListEntryReferenceRewriter;
 	private final BlogsEntryMigrator _blogsEntryMigrator;
@@ -407,6 +429,7 @@ public class CMSMigrationManager {
 	private final JournalArticleMigrator _journalArticleMigrator;
 	private final LayoutLocalService _layoutLocalService;
 	private final LayoutReferenceRewriter _layoutReferenceRewriter;
+	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
 	private final ObjectEntryLocalService _objectEntryLocalService;
 	private final ObjectFieldLocalService _objectFieldLocalService;
 	private final PortletReferenceRewriter _portletReferenceRewriter;
