@@ -5,6 +5,8 @@
 
 package com.liferay.cms.migration.web.internal.migration;
 
+import com.liferay.asset.kernel.model.AssetEntry;
+import com.liferay.asset.kernel.service.AssetEntryLocalService;
 import com.liferay.cms.migration.web.internal.background.task.CMSMigrationBackgroundTaskStatusMessageSender;
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.cms.migration.web.internal.content.BlogsEntryMigrator;
@@ -21,8 +23,10 @@ import com.liferay.cms.migration.web.internal.template.TemplateMigrator;
 import com.liferay.depot.service.DepotEntryGroupRelLocalService;
 import com.liferay.document.library.kernel.model.DLFileEntry;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.object.model.ObjectField;
+import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.petra.string.StringBundler;
@@ -287,6 +291,19 @@ public class CMSMigrationManager {
 			(ServiceContext)cmsMigrationContext.getServiceContext(
 			).clone();
 
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.getObjectDefinition(
+				objectEntry.getObjectDefinitionId());
+
+		AssetEntry assetEntry = _assetEntryLocalService.fetchEntry(
+			objectDefinition.getClassName(), objectEntry.getObjectEntryId());
+
+		if (assetEntry != null) {
+			serviceContext.setAssetCategoryIds(assetEntry.getCategoryIds());
+			serviceContext.setAssetPriority(assetEntry.getPriority());
+			serviceContext.setAssetTagNames(assetEntry.getTagNames());
+		}
+
 		if (objectEntry.isApproved()) {
 			serviceContext.setWorkflowAction(WorkflowConstants.ACTION_PUBLISH);
 		}
@@ -352,6 +369,9 @@ public class CMSMigrationManager {
 			phase, total);
 	}
 
+	private static final Snapshot<AssetEntryLocalService>
+		_assetEntryLocalServiceSnapshot = new Snapshot<>(
+			CMSMigrationManager.class, AssetEntryLocalService.class);
 	private static final Snapshot<DepotEntryGroupRelLocalService>
 		_depotEntryGroupRelLocalServiceSnapshot = new Snapshot<>(
 			CMSMigrationManager.class, DepotEntryGroupRelLocalService.class);
@@ -361,6 +381,9 @@ public class CMSMigrationManager {
 	private static final Snapshot<LayoutLocalService>
 		_layoutLocalServiceSnapshot = new Snapshot<>(
 			CMSMigrationManager.class, LayoutLocalService.class);
+	private static final Snapshot<ObjectDefinitionLocalService>
+		_objectDefinitionLocalServiceSnapshot = new Snapshot<>(
+			CMSMigrationManager.class, ObjectDefinitionLocalService.class);
 	private static final Snapshot<ObjectEntryLocalService>
 		_objectEntryLocalServiceSnapshot = new Snapshot<>(
 			CMSMigrationManager.class, ObjectEntryLocalService.class);
@@ -368,6 +391,8 @@ public class CMSMigrationManager {
 		_objectFieldLocalServiceSnapshot = new Snapshot<>(
 			CMSMigrationManager.class, ObjectFieldLocalService.class);
 
+	private final AssetEntryLocalService _assetEntryLocalService =
+		_assetEntryLocalServiceSnapshot.get();
 	private final AssetListEntryReferenceRewriter
 		_assetListEntryReferenceRewriter =
 			new AssetListEntryReferenceRewriter();
@@ -394,6 +419,8 @@ public class CMSMigrationManager {
 		_layoutLocalServiceSnapshot.get();
 	private final LayoutReferenceRewriter _layoutReferenceRewriter =
 		new LayoutReferenceRewriter();
+	private final ObjectDefinitionLocalService _objectDefinitionLocalService =
+		_objectDefinitionLocalServiceSnapshot.get();
 	private final ObjectEntryLocalService _objectEntryLocalService =
 		_objectEntryLocalServiceSnapshot.get();
 	private final ObjectFieldLocalService _objectFieldLocalService =
