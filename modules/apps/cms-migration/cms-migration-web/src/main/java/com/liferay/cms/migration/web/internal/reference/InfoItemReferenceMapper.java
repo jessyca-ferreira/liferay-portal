@@ -495,6 +495,8 @@ public class InfoItemReferenceMapper {
 		).put(
 			"displayDate", "displayDate"
 		).put(
+			"displayPageURL", "displayPageURL"
+		).put(
 			"expirationDate", "expirationDate"
 		).put(
 			"lastEditorName", "author"
