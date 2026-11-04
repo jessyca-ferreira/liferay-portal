@@ -91,6 +91,9 @@ import com.liferay.portal.kernel.util.PortletKeys;
 import com.liferay.portal.kernel.util.ProxyUtil;
 import com.liferay.portal.kernel.util.Validator;
 import com.liferay.portal.kernel.util.WebKeys;
+import com.liferay.portal.kernel.xml.Document;
+import com.liferay.portal.kernel.xml.Element;
+import com.liferay.portal.kernel.xml.SAXReaderUtil;
 import com.liferay.portal.test.rule.Inject;
 import com.liferay.portal.test.rule.LiferayIntegrationTestRule;
 import com.liferay.portal.test.rule.PermissionCheckerMethodTestRule;
@@ -296,6 +299,19 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithFileEntryDescription() throws Exception {
+		String description = RandomTestUtil.randomString();
+
+		FileEntry fileEntry = _addFileEntry(description);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		FileEntry attachmentFileEntry = _getAttachmentFileEntry(fileEntry);
+
+		Assert.assertEquals(description, attachmentFileEntry.getDescription());
+	}
+
+	@Test
 	public void testExecuteWithGlobalSourceGroup() throws Exception {
 		Group companyGroup = _groupLocalService.getCompanyGroup(
 			_group.getCompanyId());
@@ -401,6 +417,55 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				LocaleUtil.toLanguageId(locale), description
 			).build(),
 			values.get("description_i18n"));
+	}
+
+	@Test
+	public void testExecuteWithImageAlternativeText() throws Exception {
+		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
+
+		String alternativeText = RandomTestUtil.randomString();
+		Locale locale = LocaleUtil.getSiteDefault();
+
+		_journalArticle = _addJournalArticleWithImage(
+			alternativeText, fileEntry, locale);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		Map<String, Serializable> values = _getJournalArticleValues();
+
+		FileEntry attachmentFileEntry = _dlAppLocalService.getFileEntry(
+			GetterUtil.getLong(values.get("image")));
+
+		Assert.assertEquals(
+			alternativeText, attachmentFileEntry.getDescription());
+
+		Assert.assertEquals(
+			HashMapBuilder.put(
+				LocaleUtil.toLanguageId(locale), alternativeText
+			).build(),
+			values.get("imageAlt_i18n"));
+	}
+
+	@Test
+	public void testExecuteWithImageAlternativeTextWhenFileEntryHasDescription()
+		throws Exception {
+
+		String description = RandomTestUtil.randomString();
+
+		FileEntry fileEntry = _addFileEntry(description);
+
+		_journalArticle = _addJournalArticleWithImage(
+			RandomTestUtil.randomString(), fileEntry,
+			LocaleUtil.getSiteDefault());
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		Map<String, Serializable> values = _getJournalArticleValues();
+
+		FileEntry attachmentFileEntry = _dlAppLocalService.getFileEntry(
+			GetterUtil.getLong(values.get("image")));
+
+		Assert.assertEquals(description, attachmentFileEntry.getDescription());
 	}
 
 	@Test
@@ -846,6 +911,85 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Assert.assertTrue(GetterUtil.getLong(values.get("file")) > 0);
 	}
 
+	private void _addDynamicElement(
+		Element rootElement, String languageId, String name, String type,
+		String data) {
+
+		Element dynamicElementElement = rootElement.addElement(
+			"dynamic-element");
+
+		dynamicElementElement.addAttribute("index-type", "text");
+		dynamicElementElement.addAttribute("name", name);
+		dynamicElementElement.addAttribute("type", type);
+
+		Element dynamicContentElement = dynamicElementElement.addElement(
+			"dynamic-content");
+
+		dynamicContentElement.addAttribute("language-id", languageId);
+		dynamicContentElement.addCDATA(data);
+	}
+
+	private FileEntry _addFileEntry(String description) throws Exception {
+		return _dlAppLocalService.addFileEntry(
+			null, TestPropsValues.getUserId(), _group.getGroupId(),
+			DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			RandomTestUtil.randomString() + ".txt", ContentTypes.TEXT_PLAIN,
+			RandomTestUtil.randomString(), null, description, null,
+			RandomTestUtil.randomBytes(), null, null, null,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+	}
+
+	private JournalArticle _addJournalArticleWithImage(
+			String alternativeText, FileEntry fileEntry, Locale locale)
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm("name");
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"image", "image", DDMFormFieldTypeConstants.IMAGE, "image",
+				true, false, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		Document document = SAXReaderUtil.createDocument();
+
+		Element rootElement = document.addElement("root");
+
+		String languageId = LocaleUtil.toLanguageId(locale);
+
+		rootElement.addAttribute("available-locales", languageId);
+		rootElement.addAttribute("default-locale", languageId);
+
+		_addDynamicElement(
+			rootElement, languageId, "name", "text",
+			RandomTestUtil.randomString());
+		_addDynamicElement(
+			rootElement, languageId, "image", "image",
+			JSONUtil.put(
+				"alt", alternativeText
+			).put(
+				"fileEntryId", fileEntry.getFileEntryId()
+			).put(
+				"groupId", fileEntry.getGroupId()
+			).put(
+				"name", fileEntry.getFileName()
+			).put(
+				"title", fileEntry.getTitle()
+			).put(
+				"type", "document"
+			).put(
+				"uuid", fileEntry.getUuid()
+			).toString());
+
+		return JournalTestUtil.addArticleWithXMLContent(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			JournalArticleConstants.CLASS_NAME_ID_DEFAULT, document.asXML(),
+			ddmStructure.getStructureKey(), null, locale);
+	}
+
 	private String _addJournalContentPortlet(
 			Layout layout, JournalArticle journalArticle)
 		throws Exception {
@@ -944,6 +1088,19 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return portletPreferences.getValue(name, null);
 	}
 
+	private FileEntry _getAttachmentFileEntry(FileEntry fileEntry)
+		throws Exception {
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DL_FILE_ENTRY_TYPE_0",
+			"CMS_MIGRATION_FILE_ENTRY_" + fileEntry.getFileEntryId());
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		return _dlAppLocalService.getFileEntry(
+			GetterUtil.getLong(values.get("file")));
+	}
+
 	private String _getContent(int wordCount) {
 		StringBundler sb = new StringBundler((wordCount * 2) + 2);
 
@@ -957,6 +1114,18 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		sb.append("</p>");
 
 		return sb.toString();
+	}
+
+	private Map<String, Serializable> _getJournalArticleValues()
+		throws Exception {
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DDM_STRUCTURE_" +
+				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
+				_journalArticle.getResourcePrimKey());
+
+		return objectEntry.getValues();
 	}
 
 	private ObjectEntry _getObjectEntry(
