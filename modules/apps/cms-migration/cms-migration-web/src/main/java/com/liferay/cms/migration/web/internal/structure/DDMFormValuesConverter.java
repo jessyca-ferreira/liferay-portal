@@ -27,7 +27,6 @@ import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.json.JSONUtil;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.LocaleUtil;
@@ -55,6 +54,20 @@ import java.util.Objects;
  * @author Lino Alves
  */
 public class DDMFormValuesConverter {
+
+	public DDMFormValuesConverter(
+		DLAppLocalService dlAppLocalService,
+		HTMLReferenceRewriter htmlReferenceRewriter,
+		JournalArticleLocalService journalArticleLocalService,
+		JSONFactory jsonFactory,
+		ObjectDefinitionMigrator objectDefinitionMigrator) {
+
+		_dlAppLocalService = dlAppLocalService;
+		_htmlReferenceRewriter = htmlReferenceRewriter;
+		_journalArticleLocalService = journalArticleLocalService;
+		_jsonFactory = jsonFactory;
+		_objectDefinitionMigrator = objectDefinitionMigrator;
+	}
 
 	public Map<String, Serializable> getValues(
 		CMSMigrationContext cmsMigrationContext, DDMFormValues ddmFormValues) {
@@ -571,23 +584,10 @@ public class DDMFormValuesConverter {
 	private static final Log _log = LogFactoryUtil.getLog(
 		DDMFormValuesConverter.class);
 
-	private static final Snapshot<DLAppLocalService>
-		_dlAppLocalServiceSnapshot = new Snapshot<>(
-			DDMFormValuesConverter.class, DLAppLocalService.class);
-	private static final Snapshot<JournalArticleLocalService>
-		_journalArticleLocalServiceSnapshot = new Snapshot<>(
-			DDMFormValuesConverter.class, JournalArticleLocalService.class);
-	private static final Snapshot<JSONFactory> _jsonFactorySnapshot =
-		new Snapshot<>(DDMFormValuesConverter.class, JSONFactory.class);
-
-	private final DLAppLocalService _dlAppLocalService =
-		_dlAppLocalServiceSnapshot.get();
-	private final HTMLReferenceRewriter _htmlReferenceRewriter =
-		new HTMLReferenceRewriter();
-	private final JournalArticleLocalService _journalArticleLocalService =
-		_journalArticleLocalServiceSnapshot.get();
-	private final JSONFactory _jsonFactory = _jsonFactorySnapshot.get();
-	private final ObjectDefinitionMigrator _objectDefinitionMigrator =
-		new ObjectDefinitionMigrator();
+	private final DLAppLocalService _dlAppLocalService;
+	private final HTMLReferenceRewriter _htmlReferenceRewriter;
+	private final JournalArticleLocalService _journalArticleLocalService;
+	private final JSONFactory _jsonFactory;
+	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
 
 }

@@ -40,7 +40,6 @@ import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.language.Language;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.ListUtil;
 import com.liferay.portal.kernel.util.LocaleUtil;
@@ -64,6 +63,26 @@ import java.util.Set;
  * @author Lino Alves
  */
 public class ObjectDefinitionMigrator {
+
+	public ObjectDefinitionMigrator(
+		DDMStructureLocalService ddmStructureLocalService, Language language,
+		ListTypeDefinitionLocalService listTypeDefinitionLocalService,
+		ObjectDefinitionLocalService objectDefinitionLocalService,
+		ObjectDefinitionSettingLocalService objectDefinitionSettingLocalService,
+		ObjectFieldLocalService objectFieldLocalService,
+		ObjectFieldSettingLocalService objectFieldSettingLocalService,
+		ObjectFolderLocalService objectFolderLocalService) {
+
+		_ddmStructureLocalService = ddmStructureLocalService;
+		_language = language;
+		_listTypeDefinitionLocalService = listTypeDefinitionLocalService;
+		_objectDefinitionLocalService = objectDefinitionLocalService;
+		_objectDefinitionSettingLocalService =
+			objectDefinitionSettingLocalService;
+		_objectFieldLocalService = objectFieldLocalService;
+		_objectFieldSettingLocalService = objectFieldSettingLocalService;
+		_objectFolderLocalService = objectFolderLocalService;
+	}
 
 	public ObjectDefinition getExternalVideoObjectDefinition(
 			CMSMigrationContext cmsMigrationContext)
@@ -637,50 +656,16 @@ public class ObjectDefinitionMigrator {
 				false));
 	}
 
-	private static final Snapshot<DDMStructureLocalService>
-		_ddmStructureLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class, DDMStructureLocalService.class);
-	private static final Snapshot<Language> _languageSnapshot = new Snapshot<>(
-		ObjectDefinitionMigrator.class, Language.class);
-	private static final Snapshot<ListTypeDefinitionLocalService>
-		_listTypeDefinitionLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class,
-			ListTypeDefinitionLocalService.class);
-	private static final Snapshot<ObjectDefinitionLocalService>
-		_objectDefinitionLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class, ObjectDefinitionLocalService.class);
-	private static final Snapshot<ObjectDefinitionSettingLocalService>
-		_objectDefinitionSettingLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class,
-			ObjectDefinitionSettingLocalService.class);
-	private static final Snapshot<ObjectFieldLocalService>
-		_objectFieldLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class, ObjectFieldLocalService.class);
-	private static final Snapshot<ObjectFieldSettingLocalService>
-		_objectFieldSettingLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class,
-			ObjectFieldSettingLocalService.class);
-	private static final Snapshot<ObjectFolderLocalService>
-		_objectFolderLocalServiceSnapshot = new Snapshot<>(
-			ObjectDefinitionMigrator.class, ObjectFolderLocalService.class);
-
-	private final DDMStructureLocalService _ddmStructureLocalService =
-		_ddmStructureLocalServiceSnapshot.get();
-	private final Language _language = _languageSnapshot.get();
+	private final DDMStructureLocalService _ddmStructureLocalService;
+	private final Language _language;
 	private final ListTypeDefinitionLocalService
-		_listTypeDefinitionLocalService =
-			_listTypeDefinitionLocalServiceSnapshot.get();
-	private final ObjectDefinitionLocalService _objectDefinitionLocalService =
-		_objectDefinitionLocalServiceSnapshot.get();
+		_listTypeDefinitionLocalService;
+	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
 	private final ObjectDefinitionSettingLocalService
-		_objectDefinitionSettingLocalService =
-			_objectDefinitionSettingLocalServiceSnapshot.get();
-	private final ObjectFieldLocalService _objectFieldLocalService =
-		_objectFieldLocalServiceSnapshot.get();
+		_objectDefinitionSettingLocalService;
+	private final ObjectFieldLocalService _objectFieldLocalService;
 	private final ObjectFieldSettingLocalService
-		_objectFieldSettingLocalService =
-			_objectFieldSettingLocalServiceSnapshot.get();
-	private final ObjectFolderLocalService _objectFolderLocalService =
-		_objectFolderLocalServiceSnapshot.get();
+		_objectFieldSettingLocalService;
+	private final ObjectFolderLocalService _objectFolderLocalService;
 
 }
