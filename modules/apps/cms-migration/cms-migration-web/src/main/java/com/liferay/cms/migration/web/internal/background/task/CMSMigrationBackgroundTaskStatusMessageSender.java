@@ -9,12 +9,17 @@ import com.liferay.portal.kernel.backgroundtask.BackgroundTaskStatusMessageSende
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskThreadLocal;
 import com.liferay.portal.kernel.backgroundtask.constants.BackgroundTaskConstants;
 import com.liferay.portal.kernel.messaging.Message;
-import com.liferay.portal.kernel.module.service.Snapshot;
 
 /**
  * @author Lino Alves
  */
 public class CMSMigrationBackgroundTaskStatusMessageSender {
+
+	public CMSMigrationBackgroundTaskStatusMessageSender(
+		BackgroundTaskStatusMessageSender backgroundTaskStatusMessageSender) {
+
+		_backgroundTaskStatusMessageSender = backgroundTaskStatusMessageSender;
+	}
 
 	public void sendItemStatusMessage(String itemTitle) {
 		Message message = _createMessage("item");
@@ -46,13 +51,7 @@ public class CMSMigrationBackgroundTaskStatusMessageSender {
 		return message;
 	}
 
-	private static final Snapshot<BackgroundTaskStatusMessageSender>
-		_backgroundTaskStatusMessageSenderSnapshot = new Snapshot<>(
-			CMSMigrationBackgroundTaskStatusMessageSender.class,
-			BackgroundTaskStatusMessageSender.class);
-
 	private final BackgroundTaskStatusMessageSender
-		_backgroundTaskStatusMessageSender =
-			_backgroundTaskStatusMessageSenderSnapshot.get();
+		_backgroundTaskStatusMessageSender;
 
 }

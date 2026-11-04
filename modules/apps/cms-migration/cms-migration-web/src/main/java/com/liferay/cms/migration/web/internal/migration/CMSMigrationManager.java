@@ -32,7 +32,6 @@ import com.liferay.portal.kernel.dao.orm.ProjectionFactoryUtil;
 import com.liferay.portal.kernel.dao.orm.RestrictionsFactoryUtil;
 import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.model.Layout;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.service.LayoutLocalService;
 import com.liferay.portal.kernel.service.ServiceContext;
@@ -54,6 +53,47 @@ import java.util.Objects;
  * @author Lino Alves
  */
 public class CMSMigrationManager {
+
+	public CMSMigrationManager(
+		AssetListEntryReferenceRewriter assetListEntryReferenceRewriter,
+		BlogsEntryMigrator blogsEntryMigrator,
+		CMSMigrationBackgroundTaskStatusMessageSender
+			cmsMigrationBackgroundTaskStatusMessageSender,
+		DepotEntryGroupRelLocalService depotEntryGroupRelLocalService,
+		DisplayPageTemplateMigrator displayPageTemplateMigrator,
+		FileEntryMigrator fileEntryMigrator, FolderMigrator folderMigrator,
+		GroupLocalService groupLocalService,
+		HTMLReferenceRewriter htmlReferenceRewriter,
+		JournalArticleMigrator journalArticleMigrator,
+		LayoutLocalService layoutLocalService,
+		LayoutReferenceRewriter layoutReferenceRewriter,
+		ObjectEntryLocalService objectEntryLocalService,
+		ObjectFieldLocalService objectFieldLocalService,
+		PortletReferenceRewriter portletReferenceRewriter,
+		SiteNavigationMenuItemReferenceRewriter
+			siteNavigationMenuItemReferenceRewriter,
+		TemplateMigrator templateMigrator) {
+
+		_assetListEntryReferenceRewriter = assetListEntryReferenceRewriter;
+		_blogsEntryMigrator = blogsEntryMigrator;
+		_cmsMigrationBackgroundTaskStatusMessageSender =
+			cmsMigrationBackgroundTaskStatusMessageSender;
+		_depotEntryGroupRelLocalService = depotEntryGroupRelLocalService;
+		_displayPageTemplateMigrator = displayPageTemplateMigrator;
+		_fileEntryMigrator = fileEntryMigrator;
+		_folderMigrator = folderMigrator;
+		_groupLocalService = groupLocalService;
+		_htmlReferenceRewriter = htmlReferenceRewriter;
+		_journalArticleMigrator = journalArticleMigrator;
+		_layoutLocalService = layoutLocalService;
+		_layoutReferenceRewriter = layoutReferenceRewriter;
+		_objectEntryLocalService = objectEntryLocalService;
+		_objectFieldLocalService = objectFieldLocalService;
+		_portletReferenceRewriter = portletReferenceRewriter;
+		_siteNavigationMenuItemReferenceRewriter =
+			siteNavigationMenuItemReferenceRewriter;
+		_templateMigrator = templateMigrator;
+	}
 
 	public void migrate(CMSMigrationContext cmsMigrationContext)
 		throws Exception {
@@ -352,57 +392,26 @@ public class CMSMigrationManager {
 			phase, total);
 	}
 
-	private static final Snapshot<DepotEntryGroupRelLocalService>
-		_depotEntryGroupRelLocalServiceSnapshot = new Snapshot<>(
-			CMSMigrationManager.class, DepotEntryGroupRelLocalService.class);
-	private static final Snapshot<GroupLocalService>
-		_groupLocalServiceSnapshot = new Snapshot<>(
-			CMSMigrationManager.class, GroupLocalService.class);
-	private static final Snapshot<LayoutLocalService>
-		_layoutLocalServiceSnapshot = new Snapshot<>(
-			CMSMigrationManager.class, LayoutLocalService.class);
-	private static final Snapshot<ObjectEntryLocalService>
-		_objectEntryLocalServiceSnapshot = new Snapshot<>(
-			CMSMigrationManager.class, ObjectEntryLocalService.class);
-	private static final Snapshot<ObjectFieldLocalService>
-		_objectFieldLocalServiceSnapshot = new Snapshot<>(
-			CMSMigrationManager.class, ObjectFieldLocalService.class);
-
 	private final AssetListEntryReferenceRewriter
-		_assetListEntryReferenceRewriter =
-			new AssetListEntryReferenceRewriter();
-	private final BlogsEntryMigrator _blogsEntryMigrator =
-		new BlogsEntryMigrator();
+		_assetListEntryReferenceRewriter;
+	private final BlogsEntryMigrator _blogsEntryMigrator;
 	private final CMSMigrationBackgroundTaskStatusMessageSender
-		_cmsMigrationBackgroundTaskStatusMessageSender =
-			new CMSMigrationBackgroundTaskStatusMessageSender();
+		_cmsMigrationBackgroundTaskStatusMessageSender;
 	private final DepotEntryGroupRelLocalService
-		_depotEntryGroupRelLocalService =
-			_depotEntryGroupRelLocalServiceSnapshot.get();
-	private final DisplayPageTemplateMigrator _displayPageTemplateMigrator =
-		new DisplayPageTemplateMigrator();
-	private final FileEntryMigrator _fileEntryMigrator =
-		new FileEntryMigrator();
-	private final FolderMigrator _folderMigrator = new FolderMigrator();
-	private final GroupLocalService _groupLocalService =
-		_groupLocalServiceSnapshot.get();
-	private final HTMLReferenceRewriter _htmlReferenceRewriter =
-		new HTMLReferenceRewriter();
-	private final JournalArticleMigrator _journalArticleMigrator =
-		new JournalArticleMigrator();
-	private final LayoutLocalService _layoutLocalService =
-		_layoutLocalServiceSnapshot.get();
-	private final LayoutReferenceRewriter _layoutReferenceRewriter =
-		new LayoutReferenceRewriter();
-	private final ObjectEntryLocalService _objectEntryLocalService =
-		_objectEntryLocalServiceSnapshot.get();
-	private final ObjectFieldLocalService _objectFieldLocalService =
-		_objectFieldLocalServiceSnapshot.get();
-	private final PortletReferenceRewriter _portletReferenceRewriter =
-		new PortletReferenceRewriter();
+		_depotEntryGroupRelLocalService;
+	private final DisplayPageTemplateMigrator _displayPageTemplateMigrator;
+	private final FileEntryMigrator _fileEntryMigrator;
+	private final FolderMigrator _folderMigrator;
+	private final GroupLocalService _groupLocalService;
+	private final HTMLReferenceRewriter _htmlReferenceRewriter;
+	private final JournalArticleMigrator _journalArticleMigrator;
+	private final LayoutLocalService _layoutLocalService;
+	private final LayoutReferenceRewriter _layoutReferenceRewriter;
+	private final ObjectEntryLocalService _objectEntryLocalService;
+	private final ObjectFieldLocalService _objectFieldLocalService;
+	private final PortletReferenceRewriter _portletReferenceRewriter;
 	private final SiteNavigationMenuItemReferenceRewriter
-		_siteNavigationMenuItemReferenceRewriter =
-			new SiteNavigationMenuItemReferenceRewriter();
-	private final TemplateMigrator _templateMigrator = new TemplateMigrator();
+		_siteNavigationMenuItemReferenceRewriter;
+	private final TemplateMigrator _templateMigrator;
 
 }
