@@ -6,6 +6,7 @@
 package com.liferay.cms.migration.web.internal.structure;
 
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
+import com.liferay.cms.migration.web.internal.content.AttachmentAlternativeTextWriter;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.cms.migration.web.internal.reference.HTMLReferenceRewriter;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
@@ -56,12 +57,14 @@ import java.util.Objects;
 public class DDMFormValuesConverter {
 
 	public DDMFormValuesConverter(
+		AttachmentAlternativeTextWriter attachmentAlternativeTextWriter,
 		DLAppLocalService dlAppLocalService,
 		HTMLReferenceRewriter htmlReferenceRewriter,
 		JournalArticleLocalService journalArticleLocalService,
 		JSONFactory jsonFactory,
 		ObjectDefinitionMigrator objectDefinitionMigrator) {
 
+		_attachmentAlternativeTextWriter = attachmentAlternativeTextWriter;
 		_dlAppLocalService = dlAppLocalService;
 		_htmlReferenceRewriter = htmlReferenceRewriter;
 		_journalArticleLocalService = journalArticleLocalService;
@@ -216,10 +219,16 @@ public class DDMFormValuesConverter {
 				ObjectFieldConstants.BUSINESS_TYPE_ATTACHMENT)) {
 
 			try {
+				JSONObject jsonObject = _jsonFactory.createJSONObject(data);
+
 				FileEntry fileEntry = _getAttachmentFileEntry(
-					cmsMigrationContext, _jsonFactory.createJSONObject(data));
+					cmsMigrationContext, jsonObject);
 
 				if (fileEntry != null) {
+					_attachmentAlternativeTextWriter.write(
+						cmsMigrationContext, fileEntry,
+						jsonObject.getString("alt"));
+
 					return fileEntry.getFileEntryId();
 				}
 			}
@@ -584,6 +593,8 @@ public class DDMFormValuesConverter {
 	private static final Log _log = LogFactoryUtil.getLog(
 		DDMFormValuesConverter.class);
 
+	private final AttachmentAlternativeTextWriter
+		_attachmentAlternativeTextWriter;
 	private final DLAppLocalService _dlAppLocalService;
 	private final HTMLReferenceRewriter _htmlReferenceRewriter;
 	private final JournalArticleLocalService _journalArticleLocalService;

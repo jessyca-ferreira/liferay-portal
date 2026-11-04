@@ -63,6 +63,7 @@ import java.util.Objects;
 public class FileEntryMigrator {
 
 	public FileEntryMigrator(
+		AttachmentAlternativeTextWriter attachmentAlternativeTextWriter,
 		AttachmentManager attachmentManager,
 		DDMFormValuesConverter ddmFormValuesConverter,
 		DDMStorageEngineManager ddmStorageEngineManager,
@@ -77,6 +78,7 @@ public class FileEntryMigrator {
 		ObjectEntryWriter objectEntryWriter,
 		ObjectFieldLocalService objectFieldLocalService, Portal portal) {
 
+		_attachmentAlternativeTextWriter = attachmentAlternativeTextWriter;
 		_attachmentManager = attachmentManager;
 		_ddmFormValuesConverter = ddmFormValuesConverter;
 		_ddmStorageEngineManager = ddmStorageEngineManager;
@@ -170,6 +172,10 @@ public class FileEntryMigrator {
 		catch (Exception exception) {
 			throw new PortalException(exception);
 		}
+
+		_attachmentAlternativeTextWriter.write(
+			cmsMigrationContext, attachmentFileEntry,
+			fileVersion.getDescription());
 
 		values.put(
 			CMSMigrationConstants.OBJECT_FIELD_NAME_FILE,
@@ -395,6 +401,8 @@ public class FileEntryMigrator {
 	private static final Log _log = LogFactoryUtil.getLog(
 		FileEntryMigrator.class);
 
+	private final AttachmentAlternativeTextWriter
+		_attachmentAlternativeTextWriter;
 	private final AttachmentManager _attachmentManager;
 	private final DDMFormValuesConverter _ddmFormValuesConverter;
 	private final DDMStorageEngineManager _ddmStorageEngineManager;
