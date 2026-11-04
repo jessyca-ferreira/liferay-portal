@@ -22,9 +22,12 @@ import com.liferay.document.library.kernel.model.DLFileEntryTypeConstants;
 import com.liferay.document.library.kernel.model.DLFolderConstants;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
 import com.liferay.document.library.kernel.service.DLFileEntryTypeLocalService;
+import com.liferay.dynamic.data.mapping.constants.DDMTemplateConstants;
 import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTypeConstants;
 import com.liferay.dynamic.data.mapping.model.DDMForm;
 import com.liferay.dynamic.data.mapping.model.DDMStructure;
+import com.liferay.dynamic.data.mapping.model.DDMTemplate;
+import com.liferay.dynamic.data.mapping.service.DDMTemplateLocalService;
 import com.liferay.dynamic.data.mapping.test.util.DDMFormTestUtil;
 import com.liferay.dynamic.data.mapping.test.util.DDMStructureTestUtil;
 import com.liferay.fragment.model.FragmentEntryLink;
@@ -71,6 +74,7 @@ import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.service.LayoutLocalService;
 import com.liferay.portal.kernel.service.PortletPreferencesLocalService;
 import com.liferay.portal.kernel.service.ServiceContext;
+import com.liferay.portal.kernel.template.TemplateConstants;
 import com.liferay.portal.kernel.test.rule.AggregateTestRule;
 import com.liferay.portal.kernel.test.rule.DeleteAfterTestRun;
 import com.liferay.portal.kernel.test.util.CompanyTestUtil;
@@ -97,6 +101,8 @@ import com.liferay.portal.test.rule.PermissionCheckerMethodTestRule;
 import com.liferay.reading.time.model.ReadingTimeEntry;
 import com.liferay.reading.time.service.ReadingTimeEntryLocalService;
 import com.liferay.segments.service.SegmentsExperienceLocalService;
+import com.liferay.template.model.TemplateEntry;
+import com.liferay.template.service.TemplateEntryLocalService;
 
 import jakarta.portlet.PortletPreferences;
 
@@ -680,6 +686,118 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRewritePagesAndInformationTemplate()
+		throws Exception {
+
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		long templateEntryClassNameId = _portal.getClassNameId(
+			TemplateEntry.class);
+
+		ServiceContext serviceContext =
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId());
+
+		DDMTemplate ddmTemplate = _ddmTemplateLocalService.addTemplate(
+			RandomTestUtil.randomString(), TestPropsValues.getUserId(),
+			_group.getGroupId(), templateEntryClassNameId, 0,
+			templateEntryClassNameId,
+			HashMapBuilder.put(
+				LocaleUtil.getSiteDefault(), RandomTestUtil.randomString()
+			).build(),
+			null, DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY, StringPool.BLANK,
+			TemplateConstants.LANG_TYPE_FTL,
+			"<h1>${JournalArticle_title.getData()}</h1>" +
+				"${.vars[\"DDMStructure_name\"].getData()}",
+			serviceContext);
+
+		TemplateEntry templateEntry =
+			_templateEntryLocalService.addTemplateEntry(
+				RandomTestUtil.randomString(), TestPropsValues.getUserId(),
+				_group.getGroupId(), ddmTemplate.getTemplateId(),
+				JournalArticle.class.getName(),
+				String.valueOf(_journalArticle.getDDMStructureId()),
+				serviceContext);
+
+		Layout layout = LayoutTestUtil.addTypeContentLayout(_group);
+
+		FragmentEntryLink fragmentEntryLink =
+			ContentLayoutTestUtil.addFragmentEntryLinkToLayout(
+				JSONUtil.put(
+					"com.liferay.fragment.entry.processor.editable." +
+						"EditableFragmentEntryProcessor",
+					JSONUtil.put(
+						"element-html",
+						JSONUtil.put(
+							"classNameId",
+							String.valueOf(
+								_portal.getClassNameId(JournalArticle.class))
+						).put(
+							"classPK",
+							String.valueOf(_journalArticle.getResourcePrimKey())
+						).put(
+							"defaultValue", RandomTestUtil.randomString()
+						).put(
+							"fieldId",
+							"ddmTemplate__ddmTemplate_" +
+								templateEntry.getTemplateEntryId()
+						))
+				).toString(),
+				layout,
+				_segmentsExperienceLocalService.
+					fetchDefaultSegmentsExperienceId(layout.getPlid()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), true));
+
+		TemplateEntry migratedTemplateEntry =
+			_templateEntryLocalService.getTemplateEntryByExternalReferenceCode(
+				"CMS_MIGRATION_DDM_TEMPLATE_" + ddmTemplate.getTemplateId(),
+				_group.getGroupId());
+
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.
+				getObjectDefinitionByExternalReferenceCode(
+					"CMS_MIGRATION_DDM_STRUCTURE_" +
+						_journalArticle.getDDMStructureId(),
+					_group.getCompanyId());
+
+		Assert.assertEquals(
+			objectDefinition.getClassName(),
+			migratedTemplateEntry.getInfoItemClassName());
+
+		DDMTemplate migratedDDMTemplate = _ddmTemplateLocalService.getTemplate(
+			migratedTemplateEntry.getDDMTemplateId());
+
+		String script = migratedDDMTemplate.getScript();
+
+		Assert.assertTrue(script, script.contains("ObjectField_title"));
+		Assert.assertTrue(
+			script, script.contains(".vars[\"ObjectField_name\"]"));
+		Assert.assertFalse(script, script.contains("DDMStructure_"));
+		Assert.assertFalse(script, script.contains("JournalArticle_"));
+
+		fragmentEntryLink = _fragmentEntryLinkLocalService.getFragmentEntryLink(
+			fragmentEntryLink.getFragmentEntryLinkId());
+
+		JSONObject editableValuesJSONObject = JSONFactoryUtil.createJSONObject(
+			fragmentEntryLink.getEditableValues());
+
+		JSONObject elementHTMLJSONObject =
+			editableValuesJSONObject.getJSONObject(
+				"com.liferay.fragment.entry.processor.editable." +
+					"EditableFragmentEntryProcessor"
+			).getJSONObject(
+				"element-html"
+			);
+
+		Assert.assertEquals(
+			"ddmTemplate__ddmTemplate_" +
+				migratedTemplateEntry.getTemplateEntryId(),
+			elementHTMLJSONObject.getString("fieldId"));
+	}
+
+	@Test
 	public void testExecuteWithUnavailableDefaultLanguage() throws Exception {
 		Map<Locale, String> contentMap = HashMapBuilder.put(
 			LocaleUtil.US, RandomTestUtil.randomString()
@@ -1085,6 +1203,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	@Inject
 	private CompanyLocalService _companyLocalService;
 
+	@Inject
+	private DDMTemplateLocalService _ddmTemplateLocalService;
+
 	private DepotEntry _depotEntry;
 
 	@Inject
@@ -1142,5 +1263,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private SegmentsExperienceLocalService _segmentsExperienceLocalService;
+
+	@Inject
+	private TemplateEntryLocalService _templateEntryLocalService;
 
 }
