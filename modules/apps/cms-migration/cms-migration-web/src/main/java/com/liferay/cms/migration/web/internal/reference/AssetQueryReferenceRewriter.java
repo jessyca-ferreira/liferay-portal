@@ -13,7 +13,6 @@ import com.liferay.dynamic.data.mapping.service.DDMStructureLocalService;
 import com.liferay.journal.model.JournalArticle;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.petra.string.StringPool;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.ArrayUtil;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
@@ -35,6 +34,15 @@ import java.util.Set;
  * @author Lino Alves
  */
 public class AssetQueryReferenceRewriter {
+
+	public AssetQueryReferenceRewriter(
+		DDMStructureLocalService ddmStructureLocalService,
+		InfoItemReferenceMapper infoItemReferenceMapper, Portal portal) {
+
+		_ddmStructureLocalService = ddmStructureLocalService;
+		_infoItemReferenceMapper = infoItemReferenceMapper;
+		_portal = portal;
+	}
 
 	/**
 	 * Rewrites the settings in place.
@@ -226,9 +234,6 @@ public class AssetQueryReferenceRewriter {
 		return splitValues.toArray(new String[0]);
 	}
 
-	private static final Snapshot<DDMStructureLocalService>
-		_ddmStructureLocalServiceSnapshot = new Snapshot<>(
-			AssetQueryReferenceRewriter.class, DDMStructureLocalService.class);
 	private static final Map<String, String> _factoryNames = HashMapBuilder.put(
 		BlogsEntry.class.getName(), "BlogsEntryAssetRendererFactory"
 	).put(
@@ -236,13 +241,9 @@ public class AssetQueryReferenceRewriter {
 	).put(
 		JournalArticle.class.getName(), "JournalArticleAssetRendererFactory"
 	).build();
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		AssetQueryReferenceRewriter.class, Portal.class);
 
-	private final DDMStructureLocalService _ddmStructureLocalService =
-		_ddmStructureLocalServiceSnapshot.get();
-	private final InfoItemReferenceMapper _infoItemReferenceMapper =
-		new InfoItemReferenceMapper();
-	private final Portal _portal = _portalSnapshot.get();
+	private final DDMStructureLocalService _ddmStructureLocalService;
+	private final InfoItemReferenceMapper _infoItemReferenceMapper;
+	private final Portal _portal;
 
 }

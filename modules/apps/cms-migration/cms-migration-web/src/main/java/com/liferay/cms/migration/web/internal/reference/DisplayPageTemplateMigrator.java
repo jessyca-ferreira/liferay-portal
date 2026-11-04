@@ -27,7 +27,6 @@ import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.model.Layout;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.service.LayoutLocalService;
 import com.liferay.portal.kernel.util.GetterUtil;
@@ -46,6 +45,28 @@ import java.util.Map;
  * @author Lino Alves
  */
 public class DisplayPageTemplateMigrator {
+
+	public DisplayPageTemplateMigrator(
+		AssetDisplayPageEntryLocalService assetDisplayPageEntryLocalService,
+		DDMStructureLocalService ddmStructureLocalService,
+		DLFileEntryTypeLocalService dlFileEntryTypeLocalService,
+		InfoItemReferenceMapper infoItemReferenceMapper,
+		LayoutLocalService layoutLocalService,
+		LayoutPageTemplateEntryLocalService layoutPageTemplateEntryLocalService,
+		LayoutReferenceRewriter layoutReferenceRewriter,
+		ObjectDefinitionMigrator objectDefinitionMigrator, Portal portal) {
+
+		_assetDisplayPageEntryLocalService = assetDisplayPageEntryLocalService;
+		_ddmStructureLocalService = ddmStructureLocalService;
+		_dlFileEntryTypeLocalService = dlFileEntryTypeLocalService;
+		_infoItemReferenceMapper = infoItemReferenceMapper;
+		_layoutLocalService = layoutLocalService;
+		_layoutPageTemplateEntryLocalService =
+			layoutPageTemplateEntryLocalService;
+		_layoutReferenceRewriter = layoutReferenceRewriter;
+		_objectDefinitionMigrator = objectDefinitionMigrator;
+		_portal = portal;
+	}
 
 	public void migrate(CMSMigrationContext cmsMigrationContext) {
 		for (LayoutPageTemplateEntry layoutPageTemplateEntry :
@@ -338,45 +359,16 @@ public class DisplayPageTemplateMigrator {
 		}
 	}
 
-	private static final Snapshot<AssetDisplayPageEntryLocalService>
-		_assetDisplayPageEntryLocalServiceSnapshot = new Snapshot<>(
-			DisplayPageTemplateMigrator.class,
-			AssetDisplayPageEntryLocalService.class);
-	private static final Snapshot<DDMStructureLocalService>
-		_ddmStructureLocalServiceSnapshot = new Snapshot<>(
-			DisplayPageTemplateMigrator.class, DDMStructureLocalService.class);
-	private static final Snapshot<DLFileEntryTypeLocalService>
-		_dlFileEntryTypeLocalServiceSnapshot = new Snapshot<>(
-			DisplayPageTemplateMigrator.class,
-			DLFileEntryTypeLocalService.class);
-	private static final Snapshot<LayoutLocalService>
-		_layoutLocalServiceSnapshot = new Snapshot<>(
-			DisplayPageTemplateMigrator.class, LayoutLocalService.class);
-	private static final Snapshot<LayoutPageTemplateEntryLocalService>
-		_layoutPageTemplateEntryLocalServiceSnapshot = new Snapshot<>(
-			DisplayPageTemplateMigrator.class,
-			LayoutPageTemplateEntryLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		DisplayPageTemplateMigrator.class, Portal.class);
-
 	private final AssetDisplayPageEntryLocalService
-		_assetDisplayPageEntryLocalService =
-			_assetDisplayPageEntryLocalServiceSnapshot.get();
-	private final DDMStructureLocalService _ddmStructureLocalService =
-		_ddmStructureLocalServiceSnapshot.get();
-	private final DLFileEntryTypeLocalService _dlFileEntryTypeLocalService =
-		_dlFileEntryTypeLocalServiceSnapshot.get();
-	private final InfoItemReferenceMapper _infoItemReferenceMapper =
-		new InfoItemReferenceMapper();
-	private final LayoutLocalService _layoutLocalService =
-		_layoutLocalServiceSnapshot.get();
+		_assetDisplayPageEntryLocalService;
+	private final DDMStructureLocalService _ddmStructureLocalService;
+	private final DLFileEntryTypeLocalService _dlFileEntryTypeLocalService;
+	private final InfoItemReferenceMapper _infoItemReferenceMapper;
+	private final LayoutLocalService _layoutLocalService;
 	private final LayoutPageTemplateEntryLocalService
-		_layoutPageTemplateEntryLocalService =
-			_layoutPageTemplateEntryLocalServiceSnapshot.get();
-	private final LayoutReferenceRewriter _layoutReferenceRewriter =
-		new LayoutReferenceRewriter();
-	private final ObjectDefinitionMigrator _objectDefinitionMigrator =
-		new ObjectDefinitionMigrator();
-	private final Portal _portal = _portalSnapshot.get();
+		_layoutPageTemplateEntryLocalService;
+	private final LayoutReferenceRewriter _layoutReferenceRewriter;
+	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
+	private final Portal _portal;
 
 }

@@ -28,7 +28,6 @@ import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
 import com.liferay.portal.kernel.model.Group;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.util.HashMapBuilder;
@@ -50,6 +49,23 @@ public class InfoItemReferenceMapper {
 	public static final String TEMPLATE_INFO_ITEM_RENDERER_KEY =
 		"com.liferay.template.internal.info.item.renderer." +
 			"TemplateInfoItemTemplatedRenderer";
+
+	public InfoItemReferenceMapper(
+		BlogsEntryLocalService blogsEntryLocalService,
+		DLFileEntryLocalService dlFileEntryLocalService,
+		GroupLocalService groupLocalService,
+		JournalArticleLocalService journalArticleLocalService,
+		ObjectDefinitionLocalService objectDefinitionLocalService,
+		ObjectFieldLocalService objectFieldLocalService, Portal portal) {
+
+		_blogsEntryLocalService = blogsEntryLocalService;
+		_dlFileEntryLocalService = dlFileEntryLocalService;
+		_groupLocalService = groupLocalService;
+		_journalArticleLocalService = journalArticleLocalService;
+		_objectDefinitionLocalService = objectDefinitionLocalService;
+		_objectFieldLocalService = objectFieldLocalService;
+		_portal = portal;
+	}
 
 	public long getClassPK(
 		CMSMigrationContext cmsMigrationContext, String sourceClassName,
@@ -454,12 +470,6 @@ public class InfoItemReferenceMapper {
 	private static final Log _log = LogFactoryUtil.getLog(
 		InfoItemReferenceMapper.class);
 
-	private static final Snapshot<BlogsEntryLocalService>
-		_blogsEntryLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, BlogsEntryLocalService.class);
-	private static final Snapshot<DLFileEntryLocalService>
-		_dlFileEntryLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, DLFileEntryLocalService.class);
 	private static final Map<String, String> _fileFieldSuffixes =
 		HashMapBuilder.put(
 			"downloadURL", "#downloadURL"
@@ -476,15 +486,6 @@ public class InfoItemReferenceMapper {
 		).put(
 			"size", "#size"
 		).build();
-	private static final Snapshot<GroupLocalService>
-		_groupLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, GroupLocalService.class);
-	private static final Snapshot<JournalArticleLocalService>
-		_journalArticleLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, JournalArticleLocalService.class);
-	private static final Snapshot<ObjectDefinitionLocalService>
-		_objectDefinitionLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, ObjectDefinitionLocalService.class);
 	private static final Map<String, String> _objectEntryFieldNames =
 		HashMapBuilder.put(
 			"authorName", "author"
@@ -505,11 +506,6 @@ public class InfoItemReferenceMapper {
 		).put(
 			"publishDate", "publishDate"
 		).build();
-	private static final Snapshot<ObjectFieldLocalService>
-		_objectFieldLocalServiceSnapshot = new Snapshot<>(
-			InfoItemReferenceMapper.class, ObjectFieldLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		InfoItemReferenceMapper.class, Portal.class);
 	private static final Map<String, String> _rendererStyles =
 		HashMapBuilder.put(
 			"BlogsEntryAbstractInfoItemRenderer",
@@ -531,18 +527,12 @@ public class InfoItemReferenceMapper {
 			CMSMigrationInfoItemRenderer.STYLE_TITLE
 		).build();
 
-	private final BlogsEntryLocalService _blogsEntryLocalService =
-		_blogsEntryLocalServiceSnapshot.get();
-	private final DLFileEntryLocalService _dlFileEntryLocalService =
-		_dlFileEntryLocalServiceSnapshot.get();
-	private final GroupLocalService _groupLocalService =
-		_groupLocalServiceSnapshot.get();
-	private final JournalArticleLocalService _journalArticleLocalService =
-		_journalArticleLocalServiceSnapshot.get();
-	private final ObjectDefinitionLocalService _objectDefinitionLocalService =
-		_objectDefinitionLocalServiceSnapshot.get();
-	private final ObjectFieldLocalService _objectFieldLocalService =
-		_objectFieldLocalServiceSnapshot.get();
-	private final Portal _portal = _portalSnapshot.get();
+	private final BlogsEntryLocalService _blogsEntryLocalService;
+	private final DLFileEntryLocalService _dlFileEntryLocalService;
+	private final GroupLocalService _groupLocalService;
+	private final JournalArticleLocalService _journalArticleLocalService;
+	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
+	private final ObjectFieldLocalService _objectFieldLocalService;
+	private final Portal _portal;
 
 }

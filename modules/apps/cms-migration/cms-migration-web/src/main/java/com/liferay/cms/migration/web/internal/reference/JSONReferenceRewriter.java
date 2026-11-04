@@ -20,7 +20,6 @@ import com.liferay.portal.kernel.json.JSONArray;
 import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.Portal;
@@ -41,6 +40,19 @@ import java.util.Objects;
  * @author Lino Alves
  */
 public class JSONReferenceRewriter {
+
+	public JSONReferenceRewriter(
+		DLAppLocalService dlAppLocalService,
+		HTMLReferenceRewriter htmlReferenceRewriter,
+		InfoItemReferenceMapper infoItemReferenceMapper,
+		JournalArticleLocalService journalArticleLocalService, Portal portal) {
+
+		_dlAppLocalService = dlAppLocalService;
+		_htmlReferenceRewriter = htmlReferenceRewriter;
+		_infoItemReferenceMapper = infoItemReferenceMapper;
+		_journalArticleLocalService = journalArticleLocalService;
+		_portal = portal;
+	}
 
 	/**
 	 * Rewrites the JSON object in place.
@@ -432,23 +444,10 @@ public class JSONReferenceRewriter {
 	private static final Log _log = LogFactoryUtil.getLog(
 		JSONReferenceRewriter.class);
 
-	private static final Snapshot<DLAppLocalService>
-		_dlAppLocalServiceSnapshot = new Snapshot<>(
-			JSONReferenceRewriter.class, DLAppLocalService.class);
-	private static final Snapshot<JournalArticleLocalService>
-		_journalArticleLocalServiceSnapshot = new Snapshot<>(
-			JSONReferenceRewriter.class, JournalArticleLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		JSONReferenceRewriter.class, Portal.class);
-
-	private final DLAppLocalService _dlAppLocalService =
-		_dlAppLocalServiceSnapshot.get();
-	private final HTMLReferenceRewriter _htmlReferenceRewriter =
-		new HTMLReferenceRewriter();
-	private final InfoItemReferenceMapper _infoItemReferenceMapper =
-		new InfoItemReferenceMapper();
-	private final JournalArticleLocalService _journalArticleLocalService =
-		_journalArticleLocalServiceSnapshot.get();
-	private final Portal _portal = _portalSnapshot.get();
+	private final DLAppLocalService _dlAppLocalService;
+	private final HTMLReferenceRewriter _htmlReferenceRewriter;
+	private final InfoItemReferenceMapper _infoItemReferenceMapper;
+	private final JournalArticleLocalService _journalArticleLocalService;
+	private final Portal _portal;
 
 }

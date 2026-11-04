@@ -32,7 +32,6 @@ import com.liferay.portal.kernel.json.JSONFactory;
 import com.liferay.portal.kernel.json.JSONObject;
 import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.model.Layout;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.portlet.PortletIdCodec;
 import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.service.LayoutLocalService;
@@ -76,6 +75,35 @@ import java.util.Set;
  * @author Lino Alves
  */
 public class PortletReferenceRewriter {
+
+	public PortletReferenceRewriter(
+		AssetEntryLocalService assetEntryLocalService,
+		AssetPublisherHelper assetPublisherHelper,
+		AssetQueryReferenceRewriter assetQueryReferenceRewriter,
+		DDMTemplateLocalService ddmTemplateLocalService,
+		FragmentEntryLinkLocalService fragmentEntryLinkLocalService,
+		GroupLocalService groupLocalService,
+		InfoItemReferenceMapper infoItemReferenceMapper,
+		JournalArticleLocalService journalArticleLocalService,
+		JSONFactory jsonFactory, LayoutLocalService layoutLocalService,
+		Portal portal,
+		PortletPreferencesLocalService portletPreferencesLocalService,
+		SAXReader saxReader) {
+
+		_assetEntryLocalService = assetEntryLocalService;
+		_assetPublisherHelper = assetPublisherHelper;
+		_assetQueryReferenceRewriter = assetQueryReferenceRewriter;
+		_ddmTemplateLocalService = ddmTemplateLocalService;
+		_fragmentEntryLinkLocalService = fragmentEntryLinkLocalService;
+		_groupLocalService = groupLocalService;
+		_infoItemReferenceMapper = infoItemReferenceMapper;
+		_journalArticleLocalService = journalArticleLocalService;
+		_jsonFactory = jsonFactory;
+		_layoutLocalService = layoutLocalService;
+		_portal = portal;
+		_portletPreferencesLocalService = portletPreferencesLocalService;
+		_saxReader = saxReader;
+	}
 
 	public void rewrite(CMSMigrationContext cmsMigrationContext, Layout layout)
 		throws Exception {
@@ -724,62 +752,19 @@ public class PortletReferenceRewriter {
 	private static final String _BLOGS_WIDGET_TEMPLATE_KEY =
 		"CMS-MIGRATION-BLOGS";
 
-	private static final Snapshot<AssetEntryLocalService>
-		_assetEntryLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, AssetEntryLocalService.class);
-	private static final Snapshot<AssetPublisherHelper>
-		_assetPublisherHelperSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, AssetPublisherHelper.class);
-	private static final Snapshot<DDMTemplateLocalService>
-		_ddmTemplateLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, DDMTemplateLocalService.class);
-	private static final Snapshot<FragmentEntryLinkLocalService>
-		_fragmentEntryLinkLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class,
-			FragmentEntryLinkLocalService.class);
-	private static final Snapshot<GroupLocalService>
-		_groupLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, GroupLocalService.class);
-	private static final Snapshot<JournalArticleLocalService>
-		_journalArticleLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, JournalArticleLocalService.class);
-	private static final Snapshot<JSONFactory> _jsonFactorySnapshot =
-		new Snapshot<>(PortletReferenceRewriter.class, JSONFactory.class);
-	private static final Snapshot<LayoutLocalService>
-		_layoutLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class, LayoutLocalService.class);
-	private static final Snapshot<Portal> _portalSnapshot = new Snapshot<>(
-		PortletReferenceRewriter.class, Portal.class);
-	private static final Snapshot<PortletPreferencesLocalService>
-		_portletPreferencesLocalServiceSnapshot = new Snapshot<>(
-			PortletReferenceRewriter.class,
-			PortletPreferencesLocalService.class);
-	private static final Snapshot<SAXReader> _saxReaderSnapshot =
-		new Snapshot<>(PortletReferenceRewriter.class, SAXReader.class);
-
-	private final AssetEntryLocalService _assetEntryLocalService =
-		_assetEntryLocalServiceSnapshot.get();
-	private final AssetPublisherHelper _assetPublisherHelper =
-		_assetPublisherHelperSnapshot.get();
-	private final AssetQueryReferenceRewriter _assetQueryReferenceRewriter =
-		new AssetQueryReferenceRewriter();
-	private final DDMTemplateLocalService _ddmTemplateLocalService =
-		_ddmTemplateLocalServiceSnapshot.get();
-	private final FragmentEntryLinkLocalService _fragmentEntryLinkLocalService =
-		_fragmentEntryLinkLocalServiceSnapshot.get();
-	private final GroupLocalService _groupLocalService =
-		_groupLocalServiceSnapshot.get();
-	private final InfoItemReferenceMapper _infoItemReferenceMapper =
-		new InfoItemReferenceMapper();
-	private final JournalArticleLocalService _journalArticleLocalService =
-		_journalArticleLocalServiceSnapshot.get();
-	private final JSONFactory _jsonFactory = _jsonFactorySnapshot.get();
-	private final LayoutLocalService _layoutLocalService =
-		_layoutLocalServiceSnapshot.get();
-	private final Portal _portal = _portalSnapshot.get();
+	private final AssetEntryLocalService _assetEntryLocalService;
+	private final AssetPublisherHelper _assetPublisherHelper;
+	private final AssetQueryReferenceRewriter _assetQueryReferenceRewriter;
+	private final DDMTemplateLocalService _ddmTemplateLocalService;
+	private final FragmentEntryLinkLocalService _fragmentEntryLinkLocalService;
+	private final GroupLocalService _groupLocalService;
+	private final InfoItemReferenceMapper _infoItemReferenceMapper;
+	private final JournalArticleLocalService _journalArticleLocalService;
+	private final JSONFactory _jsonFactory;
+	private final LayoutLocalService _layoutLocalService;
+	private final Portal _portal;
 	private final PortletPreferencesLocalService
-		_portletPreferencesLocalService =
-			_portletPreferencesLocalServiceSnapshot.get();
-	private final SAXReader _saxReader = _saxReaderSnapshot.get();
+		_portletPreferencesLocalService;
+	private final SAXReader _saxReader;
 
 }

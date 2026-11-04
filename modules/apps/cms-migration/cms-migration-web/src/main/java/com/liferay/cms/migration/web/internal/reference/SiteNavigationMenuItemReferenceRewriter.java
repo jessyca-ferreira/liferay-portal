@@ -9,7 +9,6 @@ import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.petra.string.StringBundler;
-import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.UnicodeProperties;
 import com.liferay.portal.kernel.util.UnicodePropertiesBuilder;
@@ -25,6 +24,17 @@ import com.liferay.site.navigation.service.SiteNavigationMenuLocalService;
  * @author Lino Alves
  */
 public class SiteNavigationMenuItemReferenceRewriter {
+
+	public SiteNavigationMenuItemReferenceRewriter(
+		InfoItemReferenceMapper infoItemReferenceMapper,
+		SiteNavigationMenuItemLocalService siteNavigationMenuItemLocalService,
+		SiteNavigationMenuLocalService siteNavigationMenuLocalService) {
+
+		_infoItemReferenceMapper = infoItemReferenceMapper;
+		_siteNavigationMenuItemLocalService =
+			siteNavigationMenuItemLocalService;
+		_siteNavigationMenuLocalService = siteNavigationMenuLocalService;
+	}
 
 	public void rewrite(CMSMigrationContext cmsMigrationContext) {
 		for (SiteNavigationMenu siteNavigationMenu :
@@ -123,22 +133,10 @@ public class SiteNavigationMenuItemReferenceRewriter {
 		);
 	}
 
-	private static final Snapshot<SiteNavigationMenuItemLocalService>
-		_siteNavigationMenuItemLocalServiceSnapshot = new Snapshot<>(
-			SiteNavigationMenuItemReferenceRewriter.class,
-			SiteNavigationMenuItemLocalService.class);
-	private static final Snapshot<SiteNavigationMenuLocalService>
-		_siteNavigationMenuLocalServiceSnapshot = new Snapshot<>(
-			SiteNavigationMenuItemReferenceRewriter.class,
-			SiteNavigationMenuLocalService.class);
-
-	private final InfoItemReferenceMapper _infoItemReferenceMapper =
-		new InfoItemReferenceMapper();
+	private final InfoItemReferenceMapper _infoItemReferenceMapper;
 	private final SiteNavigationMenuItemLocalService
-		_siteNavigationMenuItemLocalService =
-			_siteNavigationMenuItemLocalServiceSnapshot.get();
+		_siteNavigationMenuItemLocalService;
 	private final SiteNavigationMenuLocalService
-		_siteNavigationMenuLocalService =
-			_siteNavigationMenuLocalServiceSnapshot.get();
+		_siteNavigationMenuLocalService;
 
 }
