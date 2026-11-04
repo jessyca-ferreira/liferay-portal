@@ -31,6 +31,7 @@ import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.service.GroupLocalService;
+import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.Portal;
 import com.liferay.portal.kernel.util.Validator;
@@ -136,8 +137,21 @@ public class InfoItemReferenceMapper {
 			return null;
 		}
 
-		if (fieldId.startsWith("ddmTemplate__ddmTemplate_") ||
-			fieldId.startsWith("ObjectEntry_") ||
+		if (fieldId.startsWith("ddmTemplate__ddmTemplate_")) {
+			long informationTemplateEntryId =
+				cmsMigrationContext.getInformationTemplateEntryId(
+					GetterUtil.getLong(
+						fieldId.substring(
+							"ddmTemplate__ddmTemplate_".length())));
+
+			if (informationTemplateEntryId > 0) {
+				return "ddmTemplate__ddmTemplate_" + informationTemplateEntryId;
+			}
+
+			return fieldId;
+		}
+
+		if (fieldId.startsWith("ObjectEntry_") ||
 			fieldId.startsWith("ObjectField_")) {
 
 			return fieldId;
