@@ -215,6 +215,10 @@ public class TemplateMigrator {
 			ddmTemplate.getName(LocaleUtil.getSiteDefault()),
 			ddmTemplate.getNameMap());
 
+		Map<Locale, String> descriptionMap = _getLocalizationMap(
+			ddmTemplate.getDescription(LocaleUtil.getSiteDefault()),
+			ddmTemplate.getDescriptionMap());
+
 		TemplateEntry templateEntry =
 			_templateEntryLocalService.
 				fetchTemplateEntryByExternalReferenceCode(
@@ -229,7 +233,7 @@ public class TemplateMigrator {
 			_ddmTemplateLocalService.updateTemplate(
 				cmsMigrationContext.getUserId(),
 				infoDDMTemplate.getTemplateId(), infoDDMTemplate.getClassPK(),
-				nameMap, ddmTemplate.getDescriptionMap(),
+				nameMap, descriptionMap,
 				DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY, StringPool.BLANK,
 				TemplateConstants.LANG_TYPE_FTL, script,
 				ddmTemplate.isCacheable(),
@@ -243,9 +247,8 @@ public class TemplateMigrator {
 				externalReferenceCode, cmsMigrationContext.getUserId(),
 				cmsMigrationContext.getSourceGroupId(),
 				templateEntryClassNameId, 0, templateEntryClassNameId, nameMap,
-				ddmTemplate.getDescriptionMap(),
-				DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY, StringPool.BLANK,
-				TemplateConstants.LANG_TYPE_FTL, script,
+				descriptionMap, DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY,
+				StringPool.BLANK, TemplateConstants.LANG_TYPE_FTL, script,
 				cmsMigrationContext.getServiceContext());
 
 			templateEntry = _templateEntryLocalService.addTemplateEntry(
