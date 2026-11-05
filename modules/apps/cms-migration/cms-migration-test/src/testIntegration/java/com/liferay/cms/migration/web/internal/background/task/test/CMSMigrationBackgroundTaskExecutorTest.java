@@ -91,6 +91,7 @@ import com.liferay.portal.kernel.util.PortletKeys;
 import com.liferay.portal.kernel.util.ProxyUtil;
 import com.liferay.portal.kernel.util.Validator;
 import com.liferay.portal.kernel.util.WebKeys;
+import com.liferay.portal.kernel.workflow.WorkflowConstants;
 import com.liferay.portal.test.rule.Inject;
 import com.liferay.portal.test.rule.LiferayIntegrationTestRule;
 import com.liferay.portal.test.rule.PermissionCheckerMethodTestRule;
@@ -677,6 +678,74 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Assert.assertEquals(
 			"true",
 			_getAssetPublisherPreferenceValue(layout, "enableReadingTime"));
+	}
+
+	@Test
+	public void testExecuteWithRewritePagesAndDraftLayout() throws Exception {
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		Layout layout = LayoutTestUtil.addTypeContentLayout(_group);
+
+		Layout draftLayout = layout.fetchDraftLayout();
+
+		String portletId = PortletIdCodec.encode(
+			JournalContentPortletKeys.JOURNAL_CONTENT,
+			RandomTestUtil.randomString());
+
+		for (Layout curLayout : new Layout[] {layout, draftLayout}) {
+			PortletPreferences portletPreferences =
+				LayoutTestUtil.getPortletPreferences(curLayout, portletId);
+
+			portletPreferences.setValue(
+				"articleId", _journalArticle.getArticleId());
+			portletPreferences.setValue(
+				"groupId", String.valueOf(_journalArticle.getGroupId()));
+
+			portletPreferences.store();
+		}
+
+		_layoutLocalService.updateStatus(
+			TestPropsValues.getUserId(), draftLayout.getPlid(),
+			WorkflowConstants.STATUS_APPROVED,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), true));
+
+		String newPortletId = PortletIdCodec.encode(
+			_CMS_CONTENT_DISPLAY_PORTLET_NAME,
+			PortletIdCodec.decodeInstanceId(portletId));
+
+		ObjectEntry objectEntry = _getObjectEntry(
+			"CMS_MIGRATION_DDM_STRUCTURE_" +
+				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
+				_journalArticle.getResourcePrimKey());
+
+		for (Layout curLayout : new Layout[] {layout, draftLayout}) {
+			Assert.assertNull(
+				_portletPreferencesLocalService.fetchPortletPreferences(
+					PortletKeys.PREFS_OWNER_ID_DEFAULT,
+					PortletKeys.PREFS_OWNER_TYPE_LAYOUT, curLayout.getPlid(),
+					portletId));
+
+			PortletPreferences portletPreferences =
+				_portletPreferencesLocalService.getPreferences(
+					curLayout.getCompanyId(),
+					PortletKeys.PREFS_OWNER_ID_DEFAULT,
+					PortletKeys.PREFS_OWNER_TYPE_LAYOUT, curLayout.getPlid(),
+					newPortletId);
+
+			Assert.assertEquals(
+				String.valueOf(objectEntry.getObjectEntryId()),
+				portletPreferences.getValue("objectEntryId", StringPool.BLANK));
+		}
+
+		draftLayout = _layoutLocalService.getLayout(draftLayout.getPlid());
+
+		Assert.assertEquals(
+			WorkflowConstants.STATUS_APPROVED, draftLayout.getStatus());
 	}
 
 	@Test
