@@ -1167,17 +1167,36 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			Map<Locale, String> titleMap)
 		throws Exception {
 
-		_journalArticle = JournalTestUtil.addArticle(
-			_group.getGroupId(),
-			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
-			JournalArticleConstants.CLASS_NAME_ID_DEFAULT, titleMap,
-			descriptionMap, contentMap, LocaleUtil.US, false, true,
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm(
+			DDMFormTestUtil.createAvailableLocales(
+				LocaleUtil.SPAIN, LocaleUtil.US),
+			LocaleUtil.US);
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"content", "content", DDMFormFieldTypeConstants.TEXT, "string",
+				true, false, false, LocaleUtil.SPAIN, LocaleUtil.US));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm,
+			LocaleUtil.US);
+
+		_journalArticle = _journalArticleLocalService.addArticle(
+			null, TestPropsValues.getUserId(), _group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID, titleMap,
+			descriptionMap,
+			DDMStructureTestUtil.getSampleStructuredContent(
+				"content", Collections.singletonList(contentMap),
+				LocaleUtil.toLanguageId(LocaleUtil.US)),
+			ddmStructure.getStructureId(), null,
 			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
 
 		Set<Locale> availableLocales = LanguageUtil.getCompanyAvailableLocales(
 			_group.getCompanyId());
 		Locale defaultLocale = LocaleUtil.getDefault();
 		Locale originalDefaultLocale = LocaleThreadLocal.getDefaultLocale();
+		Locale originalSiteDefaultLocale =
+			LocaleThreadLocal.getSiteDefaultLocale();
 
 		try {
 			CompanyTestUtil.resetCompanyLocales(
@@ -1185,11 +1204,13 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				Collections.singletonList(LocaleUtil.SPAIN), LocaleUtil.SPAIN);
 
 			LocaleThreadLocal.setDefaultLocale(LocaleUtil.SPAIN);
+			LocaleThreadLocal.setSiteDefaultLocale(LocaleUtil.SPAIN);
 
 			_assertSuccessful(_execute(_group.getGroupId(), false));
 		}
 		finally {
 			LocaleThreadLocal.setDefaultLocale(originalDefaultLocale);
+			LocaleThreadLocal.setSiteDefaultLocale(originalSiteDefaultLocale);
 
 			CompanyTestUtil.resetCompanyLocales(
 				_group.getCompanyId(), availableLocales, defaultLocale);
