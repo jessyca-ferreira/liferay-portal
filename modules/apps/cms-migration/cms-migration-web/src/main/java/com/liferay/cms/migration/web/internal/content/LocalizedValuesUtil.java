@@ -13,12 +13,40 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 
 /**
  * @author Lino Alves
  */
 public class LocalizedValuesUtil {
+
+	public static void putSiteDefaultValue(
+		Map<Locale, String> localizedValues, String defaultValue) {
+
+		Locale locale = LocaleUtil.getSiteDefault();
+
+		if (Validator.isNotNull(localizedValues.get(locale))) {
+			return;
+		}
+
+		if (Validator.isNull(defaultValue)) {
+			defaultValue = localizedValues.get(LocaleUtil.getDefault());
+		}
+
+		if (Validator.isNull(defaultValue)) {
+			TreeMap<String, String> languageIdMap = new TreeMap<>(
+				toLanguageIdMap(localizedValues));
+
+			Map.Entry<String, String> entry = languageIdMap.firstEntry();
+
+			if (entry != null) {
+				defaultValue = entry.getValue();
+			}
+		}
+
+		localizedValues.put(locale, defaultValue);
+	}
 
 	public static Map<String, String> toLanguageIdMap(
 		Map<Locale, String> localizedValues) {

@@ -6,6 +6,7 @@
 package com.liferay.cms.migration.web.internal.template;
 
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
+import com.liferay.cms.migration.web.internal.content.LocalizedValuesUtil;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.cms.migration.web.internal.reference.InfoItemReferenceMapper;
 import com.liferay.dynamic.data.mapping.constants.DDMTemplateConstants;
@@ -22,6 +23,7 @@ import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.json.JSONUtil;
 import com.liferay.portal.kernel.module.service.Snapshot;
 import com.liferay.portal.kernel.template.TemplateConstants;
+import com.liferay.portal.kernel.util.LocaleUtil;
 import com.liferay.portal.kernel.util.Portal;
 import com.liferay.portal.kernel.util.Validator;
 import com.liferay.template.model.TemplateEntry;
@@ -33,6 +35,8 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -182,6 +186,11 @@ public class TemplateMigrator {
 			String script)
 		throws PortalException {
 
+		Map<Locale, String> nameMap = ddmTemplate.getNameMap();
+
+		LocalizedValuesUtil.putSiteDefaultValue(
+			nameMap, ddmTemplate.getName(LocaleUtil.getSiteDefault()));
+
 		TemplateEntry templateEntry =
 			_templateEntryLocalService.
 				fetchTemplateEntryByExternalReferenceCode(
@@ -196,7 +205,7 @@ public class TemplateMigrator {
 			_ddmTemplateLocalService.updateTemplate(
 				cmsMigrationContext.getUserId(),
 				infoDDMTemplate.getTemplateId(), infoDDMTemplate.getClassPK(),
-				ddmTemplate.getNameMap(), ddmTemplate.getDescriptionMap(),
+				nameMap, ddmTemplate.getDescriptionMap(),
 				DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY, StringPool.BLANK,
 				TemplateConstants.LANG_TYPE_FTL, script,
 				ddmTemplate.isCacheable(),
@@ -211,8 +220,7 @@ public class TemplateMigrator {
 		DDMTemplate infoDDMTemplate = _ddmTemplateLocalService.addTemplate(
 			externalReferenceCode, cmsMigrationContext.getUserId(),
 			cmsMigrationContext.getSourceGroupId(), templateEntryClassNameId, 0,
-			templateEntryClassNameId, ddmTemplate.getNameMap(),
-			ddmTemplate.getDescriptionMap(),
+			templateEntryClassNameId, nameMap, ddmTemplate.getDescriptionMap(),
 			DDMTemplateConstants.TEMPLATE_TYPE_DISPLAY, StringPool.BLANK,
 			TemplateConstants.LANG_TYPE_FTL, script,
 			cmsMigrationContext.getServiceContext());
