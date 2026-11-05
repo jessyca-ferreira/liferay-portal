@@ -24,8 +24,10 @@ import com.liferay.fragment.service.FragmentEntryLinkLocalService;
 import com.liferay.journal.constants.JournalContentPortletKeys;
 import com.liferay.journal.model.JournalArticle;
 import com.liferay.journal.service.JournalArticleLocalService;
+import com.liferay.layout.util.UpdateLayoutModifiedDateThreadLocal;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.petra.lang.SafeCloseable;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.json.JSONFactory;
@@ -80,62 +82,75 @@ public class PortletReferenceRewriter {
 	public void rewrite(CMSMigrationContext cmsMigrationContext, Layout layout)
 		throws Exception {
 
-		for (com.liferay.portal.kernel.model.PortletPreferences
-				portletPreferences :
-					_portletPreferencesLocalService.getPortletPreferencesByPlid(
-						layout.getPlid())) {
+		boolean updateLayoutModifiedDate =
+			UpdateLayoutModifiedDateThreadLocal.isUpdateLayoutModifiedDate() &&
+			!layout.isDraftLayout();
 
-			if (portletPreferences.getOwnerType() !=
-					PortletKeys.PREFS_OWNER_TYPE_LAYOUT) {
+		try (SafeCloseable safeCloseable =
+				UpdateLayoutModifiedDateThreadLocal.
+					setUpdateLayoutModifiedDateWithSafeCloseable(
+						updateLayoutModifiedDate)) {
 
-				continue;
-			}
+			for (com.liferay.portal.kernel.model.PortletPreferences
+					portletPreferences :
+						_portletPreferencesLocalService.
+							getPortletPreferencesByPlid(layout.getPlid())) {
 
-			String portletId = portletPreferences.getPortletId();
+				if (portletPreferences.getOwnerType() !=
+						PortletKeys.PREFS_OWNER_TYPE_LAYOUT) {
 
-			String portletName = PortletIdCodec.decodePortletName(portletId);
-
-			try {
-				if (portletName.equals(
-						AssetPublisherPortletKeys.ASSET_PUBLISHER)) {
-
-					_rewriteAssetPublisher(
-						cmsMigrationContext, layout, portletId);
+					continue;
 				}
-				else if (cmsMigrationContext.isRewriteSourceGroup() &&
-						 (portletName.equals(BlogsPortletKeys.BLOGS) ||
-						  portletName.equals(
-							  BlogsPortletKeys.BLOGS_AGGREGATOR))) {
 
-					_replaceBlogs(cmsMigrationContext, layout, portletId);
+				String portletId = portletPreferences.getPortletId();
+
+				String portletName = PortletIdCodec.decodePortletName(
+					portletId);
+
+				try {
+					if (portletName.equals(
+							AssetPublisherPortletKeys.ASSET_PUBLISHER)) {
+
+						_rewriteAssetPublisher(
+							cmsMigrationContext, layout, portletId);
+					}
+					else if (cmsMigrationContext.isRewriteSourceGroup() &&
+							 (portletName.equals(BlogsPortletKeys.BLOGS) ||
+							  portletName.equals(
+								  BlogsPortletKeys.BLOGS_AGGREGATOR))) {
+
+						_replaceBlogs(cmsMigrationContext, layout, portletId);
+					}
+					else if (portletName.equals(
+								JournalContentPortletKeys.JOURNAL_CONTENT)) {
+
+						_replaceWebContentDisplay(
+							cmsMigrationContext, layout, portletId);
+					}
+					else if (portletName.equals(
+								DLPortletKeys.DOCUMENT_LIBRARY) ||
+							 portletName.equals(
+								 DLPortletKeys.MEDIA_GALLERY_DISPLAY)) {
+
+						cmsMigrationContext.getCMSMigrationReport(
+						).addWarning(
+							StringBundler.concat(
+								"The Documents and Media widget on the page ",
+								layout.getFriendlyURL(),
+								" browses the classic library and has no ",
+								"counterpart for CMS files")
+						);
+					}
 				}
-				else if (portletName.equals(
-							JournalContentPortletKeys.JOURNAL_CONTENT)) {
-
-					_replaceWebContentDisplay(
-						cmsMigrationContext, layout, portletId);
-				}
-				else if (portletName.equals(DLPortletKeys.DOCUMENT_LIBRARY) ||
-						 portletName.equals(
-							 DLPortletKeys.MEDIA_GALLERY_DISPLAY)) {
-
+				catch (Exception exception) {
 					cmsMigrationContext.getCMSMigrationReport(
-					).addWarning(
+					).addError(
 						StringBundler.concat(
-							"The Documents and Media widget on the page ",
-							layout.getFriendlyURL(),
-							" browses the classic library and has no ",
-							"counterpart for CMS files")
+							"Unable to rewrite the widget ", portletId, " on ",
+							layout.getFriendlyURL(), ": ",
+							exception.getMessage())
 					);
 				}
-			}
-			catch (Exception exception) {
-				cmsMigrationContext.getCMSMigrationReport(
-				).addError(
-					StringBundler.concat(
-						"Unable to rewrite the widget ", portletId, " on ",
-						layout.getFriendlyURL(), ": ", exception.getMessage())
-				);
 			}
 		}
 	}
