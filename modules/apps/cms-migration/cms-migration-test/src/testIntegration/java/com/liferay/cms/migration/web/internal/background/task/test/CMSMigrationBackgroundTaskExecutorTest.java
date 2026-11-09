@@ -578,6 +578,85 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRewritePagesAndAssetPublisherTagFilters()
+		throws Exception {
+
+		String assetTagName = RandomTestUtil.randomString();
+
+		ServiceContext serviceContext =
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId());
+
+		serviceContext.setAssetTagNames(new String[] {assetTagName});
+
+		_journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
+			JournalArticleConstants.CLASS_NAME_ID_DEFAULT,
+			RandomTestUtil.randomString(), RandomTestUtil.randomString(),
+			RandomTestUtil.randomString(), LocaleUtil.getSiteDefault(), false,
+			true, serviceContext);
+
+		Layout layout = LayoutTestUtil.addTypePortletLayout(_group);
+
+		String excludedAssetTagName = RandomTestUtil.randomString();
+
+		LayoutTestUtil.addPortletToLayout(
+			layout, AssetPublisherPortletKeys.ASSET_PUBLISHER,
+			HashMapBuilder.put(
+				"anyAssetType",
+				new String[] {
+					String.valueOf(_portal.getClassNameId(JournalArticle.class))
+				}
+			).put(
+				"anyClassTypeJournalArticleAssetRendererFactory",
+				new String[] {
+					String.valueOf(_journalArticle.getDDMStructureId())
+				}
+			).put(
+				"queryAndOperator0", new String[] {"false"}
+			).put(
+				"queryAndOperator1", new String[] {"false"}
+			).put(
+				"queryContains0", new String[] {"true"}
+			).put(
+				"queryContains1", new String[] {"false"}
+			).put(
+				"queryName0", new String[] {"assetTags"}
+			).put(
+				"queryName1", new String[] {"assetTags"}
+			).put(
+				"queryValues0", new String[] {assetTagName}
+			).put(
+				"queryValues1", new String[] {excludedAssetTagName}
+			).put(
+				"selectionStyle", new String[] {"dynamic"}
+			).build());
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), true);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		Assert.assertEquals(
+			"true",
+			_getAssetPublisherPreferenceValue(layout, "queryAndOperator0"));
+		Assert.assertEquals(
+			"false",
+			_getAssetPublisherPreferenceValue(layout, "queryAndOperator1"));
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				"shows content with the tags " + assetTagName));
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				"hides content with the tags " + excludedAssetTagName));
+	}
+
+	@Test
 	public void testExecuteWithRewritePagesAndBlogsWidgets() throws Exception {
 		BlogsEntry blogsEntry = _blogsEntryLocalService.addEntry(
 			TestPropsValues.getUserId(), RandomTestUtil.randomString(),
