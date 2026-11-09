@@ -7,6 +7,7 @@ package com.liferay.cms.migration.web.internal.structure;
 
 import com.liferay.blogs.model.BlogsEntry;
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
+import com.liferay.cms.migration.web.internal.content.LocalizedValuesUtil;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.document.library.kernel.model.DLFileEntry;
 import com.liferay.document.library.kernel.model.DLFileEntryType;
@@ -142,11 +143,8 @@ public class ObjectDefinitionMigrator {
 
 		Map<Locale, String> nameMap = ddmStructure.getNameMap();
 
-		if (Validator.isNull(nameMap.get(LocaleUtil.getSiteDefault()))) {
-			nameMap.put(
-				LocaleUtil.getSiteDefault(),
-				ddmStructure.getName(LocaleUtil.getSiteDefault()));
-		}
+		LocalizedValuesUtil.putSiteDefaultValue(
+			nameMap, ddmStructure.getName(LocaleUtil.getSiteDefault()));
 
 		objectDefinition = _getOrAddObjectDefinition(
 			cmsMigrationContext,
@@ -177,11 +175,8 @@ public class ObjectDefinitionMigrator {
 
 			nameMap = dlFileEntryType.getNameMap();
 
-			if (Validator.isNull(nameMap.get(LocaleUtil.getSiteDefault()))) {
-				nameMap.put(
-					LocaleUtil.getSiteDefault(),
-					dlFileEntryType.getName(LocaleUtil.getSiteDefault()));
-			}
+			LocalizedValuesUtil.putSiteDefaultValue(
+				nameMap, dlFileEntryType.getName(LocaleUtil.getSiteDefault()));
 		}
 
 		ObjectDefinition objectDefinition =
