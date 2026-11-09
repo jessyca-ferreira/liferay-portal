@@ -256,6 +256,16 @@ public class PortletReferenceRewriter {
 			groupId, articleId, WorkflowConstants.STATUS_ANY);
 	}
 
+	private String _getValue(Map<String, String[]> settings, String key) {
+		String[] values = settings.get(key);
+
+		if (ArrayUtil.isEmpty(values)) {
+			return StringPool.BLANK;
+		}
+
+		return values[0];
+	}
+
 	private boolean _isReadingTimeEnabled(Layout layout, String portletId)
 		throws Exception {
 
@@ -640,6 +650,9 @@ public class PortletReferenceRewriter {
 				cmsMigrationContext, settings, label);
 
 			if (!originalSettings.equals(_toString(settings))) {
+				_rewriteAssetTagQueryRules(
+					cmsMigrationContext, settings, label);
+
 				for (Map.Entry<String, String[]> entry : settings.entrySet()) {
 					portletPreferences.setValues(
 						entry.getKey(), entry.getValue());
@@ -690,6 +703,79 @@ public class PortletReferenceRewriter {
 		).increment(
 			"widgets"
 		);
+	}
+
+	private void _rewriteAssetTagQueryRules(
+		CMSMigrationContext cmsMigrationContext, Map<String, String[]> settings,
+		String label) {
+
+		for (int i = 0; true; i++) {
+			String[] queryValues = settings.get("queryValues" + i);
+
+			if (ArrayUtil.isEmpty(queryValues)) {
+				return;
+			}
+
+			String queryName = _getValue(settings, "queryName" + i);
+
+			if (queryName.equals("assetCategories") ||
+				queryName.equals("keywords")) {
+
+				continue;
+			}
+
+			String[] assetTagNames = StringUtil.split(
+				StringUtil.merge(queryValues));
+
+			String assetTagNamesString = StringUtil.merge(
+				assetTagNames, StringPool.COMMA_AND_SPACE);
+
+			if (!GetterUtil.getBoolean(
+					_getValue(settings, "queryContains" + i))) {
+
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						label, " hides content with the tags ",
+						assetTagNamesString, ", which does not work for ",
+						"migrated content, so migrated content with these ",
+						"tags is still shown")
+				);
+
+				continue;
+			}
+
+			if (GetterUtil.getBoolean(
+					_getValue(settings, "queryAndOperator" + i))) {
+
+				continue;
+			}
+
+			settings.put("queryAndOperator" + i, new String[] {"true"});
+
+			if (assetTagNames.length == 1) {
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						label, " shows content with the tags ",
+						assetTagNamesString, ", which does not work for ",
+						"migrated content with Contains Any, so the filter ",
+						"was changed to Contains All, which shows the same ",
+						"content")
+				);
+			}
+			else {
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						label, " shows content with any of the tags ",
+						assetTagNamesString, ", which does not work for ",
+						"migrated content, so the filter was changed to ",
+						"Contains All, which only shows content with every ",
+						"one of these tags")
+				);
+			}
+		}
 	}
 
 	private String _toString(Map<String, String[]> settings) {
