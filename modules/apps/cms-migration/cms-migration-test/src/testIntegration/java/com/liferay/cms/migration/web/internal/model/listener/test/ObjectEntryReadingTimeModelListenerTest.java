@@ -23,6 +23,9 @@ import com.liferay.portal.kernel.backgroundtask.BackgroundTask;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskExecutor;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskResult;
 import com.liferay.portal.kernel.backgroundtask.constants.BackgroundTaskConstants;
+import com.liferay.portal.kernel.dao.orm.DynamicQuery;
+import com.liferay.portal.kernel.dao.orm.ProjectionFactoryUtil;
+import com.liferay.portal.kernel.dao.orm.RestrictionsFactoryUtil;
 import com.liferay.portal.kernel.model.Group;
 import com.liferay.portal.kernel.test.rule.AggregateTestRule;
 import com.liferay.portal.kernel.test.rule.DeleteAfterTestRun;
@@ -41,7 +44,9 @@ import com.liferay.reading.time.service.ReadingTimeEntryLocalService;
 
 import java.io.Serializable;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -77,20 +82,12 @@ public class ObjectEntryReadingTimeModelListenerTest {
 			).build(),
 			DepotConstants.TYPE_SPACE,
 			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_originalObjectDefinitionIds = _getObjectDefinitionIds();
 	}
 
 	@After
 	public void tearDown() throws Exception {
-		ObjectDefinition objectDefinition =
-			_objectDefinitionLocalService.
-				fetchObjectDefinitionByExternalReferenceCode(
-					"CMS_MIGRATION_BLOGS_ENTRY", _group.getCompanyId());
-
-		if (objectDefinition != null) {
-			_objectDefinitionLocalService.deleteObjectDefinition(
-				objectDefinition);
-		}
-
 		for (DepotEntryGroupRel depotEntryGroupRel :
 				_depotEntryGroupRelLocalService.getDepotEntryGroupRels(
 					_depotEntry)) {
@@ -100,6 +97,13 @@ public class ObjectEntryReadingTimeModelListenerTest {
 		}
 
 		_depotEntryLocalService.deleteDepotEntry(_depotEntry);
+
+		for (long objectDefinitionId : _getObjectDefinitionIds()) {
+			if (!_originalObjectDefinitionIds.contains(objectDefinitionId)) {
+				_objectDefinitionLocalService.deleteObjectDefinition(
+					objectDefinitionId);
+			}
+		}
 	}
 
 	@Test
@@ -152,6 +156,22 @@ public class ObjectEntryReadingTimeModelListenerTest {
 		sb.append("</p>");
 
 		return sb.toString();
+	}
+
+	private Set<Long> _getObjectDefinitionIds() {
+		DynamicQuery dynamicQuery =
+			_objectDefinitionLocalService.dynamicQuery();
+
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.eq("companyId", _group.getCompanyId()));
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.like(
+				"externalReferenceCode", "CMS_MIGRATION_%"));
+		dynamicQuery.setProjection(
+			ProjectionFactoryUtil.property("objectDefinitionId"));
+
+		return new HashSet<>(
+			_objectDefinitionLocalService.dynamicQuery(dynamicQuery));
 	}
 
 	private ObjectEntry _migrateBlogsEntry() throws Exception {
@@ -228,6 +248,8 @@ public class ObjectEntryReadingTimeModelListenerTest {
 
 	@Inject
 	private ObjectEntryLocalService _objectEntryLocalService;
+
+	private Set<Long> _originalObjectDefinitionIds;
 
 	@Inject
 	private ReadingTimeEntryLocalService _readingTimeEntryLocalService;

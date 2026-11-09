@@ -64,6 +64,9 @@ import com.liferay.portal.kernel.backgroundtask.BackgroundTask;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskExecutor;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskResult;
 import com.liferay.portal.kernel.backgroundtask.constants.BackgroundTaskConstants;
+import com.liferay.portal.kernel.dao.orm.DynamicQuery;
+import com.liferay.portal.kernel.dao.orm.ProjectionFactoryUtil;
+import com.liferay.portal.kernel.dao.orm.RestrictionsFactoryUtil;
 import com.liferay.portal.kernel.json.JSONArray;
 import com.liferay.portal.kernel.json.JSONFactoryUtil;
 import com.liferay.portal.kernel.json.JSONObject;
@@ -127,6 +130,7 @@ import java.io.Serializable;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -170,42 +174,12 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			).build(),
 			DepotConstants.TYPE_SPACE,
 			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_originalObjectDefinitionIds = _getObjectDefinitionIds();
 	}
 
 	@After
 	public void tearDown() throws Exception {
-		for (String externalReferenceCode :
-				new String[] {
-					"CMS_MIGRATION_BLOGS_ENTRY",
-					"CMS_MIGRATION_DL_FILE_ENTRY_TYPE_0"
-				}) {
-
-			ObjectDefinition objectDefinition =
-				_objectDefinitionLocalService.
-					fetchObjectDefinitionByExternalReferenceCode(
-						externalReferenceCode, _group.getCompanyId());
-
-			if (objectDefinition == null) {
-				continue;
-			}
-
-			_objectDefinitionLocalService.deleteObjectDefinition(
-				objectDefinition);
-		}
-
-		for (long ddmStructureId : _getDDMStructureIds()) {
-			ObjectDefinition objectDefinition =
-				_objectDefinitionLocalService.
-					fetchObjectDefinitionByExternalReferenceCode(
-						"CMS_MIGRATION_DDM_STRUCTURE_" + ddmStructureId,
-						_group.getCompanyId());
-
-			if (objectDefinition != null) {
-				_objectDefinitionLocalService.deleteObjectDefinition(
-					objectDefinition);
-			}
-		}
-
 		for (DepotEntryGroupRel depotEntryGroupRel :
 				_depotEntryGroupRelLocalService.getDepotEntryGroupRels(
 					_depotEntry)) {
@@ -215,6 +189,13 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		}
 
 		_depotEntryLocalService.deleteDepotEntry(_depotEntry);
+
+		for (long objectDefinitionId : _getObjectDefinitionIds()) {
+			if (!_originalObjectDefinitionIds.contains(objectDefinitionId)) {
+				_objectDefinitionLocalService.deleteObjectDefinition(
+					objectDefinitionId);
+			}
+		}
 	}
 
 	@Test
@@ -226,7 +207,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -245,10 +226,10 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		Assert.assertNotEquals(0L, values.get("file"));
 
-		objectEntry = _getObjectEntry(_journalArticle);
+		objectEntry = _getObjectEntry(journalArticle);
 
 		Assert.assertEquals(
-			_journalArticle.getTitle(LocaleUtil.getSiteDefault()),
+			journalArticle.getTitle(LocaleUtil.getSiteDefault()),
 			objectEntry.getTitleValue(
 				LocaleUtil.toLanguageId(LocaleUtil.getSiteDefault())));
 
@@ -257,7 +238,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Assert.assertEquals(
 			objectEntry.getObjectEntryId(),
 			_getObjectEntry(
-				_journalArticle
+				journalArticle
 			).getObjectEntryId());
 	}
 
@@ -323,21 +304,23 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			TemplateConstants.LANG_TYPE_FTL,
 			"${getterUtil.getBoolean(checkbox.getData())?c}", LocaleUtil.US);
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
-			_group.getGroupId(),
-			StringBundler.concat(
-				"<root available-locales=\"en_US\" default-locale=\"en_US\">",
-				"<dynamic-element field-reference=\"checkbox\" ",
-				"index-type=\"keyword\" instance-id=\"",
-				RandomTestUtil.randomString(8),
-				"\" name=\"checkbox\" type=\"checkbox\"><dynamic-content ",
-				"language-id=\"en_US\"><![CDATA[true]]></dynamic-content>",
-				"</dynamic-element></root>"),
-			ddmStructure.getStructureKey(), null);
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				StringBundler.concat(
+					"<root available-locales=\"en_US\" ",
+					"default-locale=\"en_US\">",
+					"<dynamic-element field-reference=\"checkbox\" ",
+					"index-type=\"keyword\" instance-id=\"",
+					RandomTestUtil.randomString(8),
+					"\" name=\"checkbox\" type=\"checkbox\"><dynamic-content ",
+					"language-id=\"en_US\"><![CDATA[true]]></dynamic-content>",
+					"</dynamic-element></root>"),
+				ddmStructure.getStructureKey(), null);
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		MockHttpServletRequest mockHttpServletRequest =
 			_getMockHttpServletRequest(
@@ -395,7 +378,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Group companyGroup = _groupLocalService.getCompanyGroup(
 			_group.getCompanyId());
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle globalJournalArticle = JournalTestUtil.addArticle(
 			companyGroup.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -407,16 +390,16 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			Layout layout = LayoutTestUtil.addTypePortletLayout(_group);
 
 			String globalPortletId = _addJournalContentPortlet(
-				layout, _journalArticle);
+				layout, globalJournalArticle);
 			String portletId = _addJournalContentPortlet(
 				layout, journalArticle);
 
 			_assertSuccessful(_execute(companyGroup.getGroupId(), true));
 
-			ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+			ObjectEntry objectEntry = _getObjectEntry(globalJournalArticle);
 
 			Assert.assertEquals(
-				_journalArticle.getTitle(LocaleUtil.getSiteDefault()),
+				globalJournalArticle.getTitle(LocaleUtil.getSiteDefault()),
 				objectEntry.getTitleValue(
 					LocaleUtil.toLanguageId(LocaleUtil.getSiteDefault())));
 
@@ -452,7 +435,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 						_depotEntry.getDepotEntryId(), _group.getGroupId()));
 		}
 		finally {
-			_journalArticleLocalService.deleteArticle(_journalArticle);
+			_journalArticleLocalService.deleteArticle(globalJournalArticle);
 		}
 	}
 
@@ -461,7 +444,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		String description = RandomTestUtil.randomString();
 		Locale locale = LocaleUtil.getSiteDefault();
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
 			JournalArticleConstants.CLASS_NAME_ID_DEFAULT,
@@ -479,7 +462,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		Map<String, Serializable> values = objectEntry.getValues();
 
@@ -497,12 +480,12 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		String alternativeText = RandomTestUtil.randomString();
 		Locale locale = LocaleUtil.getSiteDefault();
 
-		_journalArticle = _addJournalArticleWithImage(
+		JournalArticle journalArticle = _addJournalArticleWithImage(
 			alternativeText, fileEntry, locale);
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		Map<String, Serializable> values = objectEntry.getValues();
 
@@ -527,13 +510,13 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		FileEntry fileEntry = _addFileEntry(description);
 
-		_journalArticle = _addJournalArticleWithImage(
+		JournalArticle journalArticle = _addJournalArticleWithImage(
 			RandomTestUtil.randomString(), fileEntry,
 			LocaleUtil.getSiteDefault());
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		Map<String, Serializable> values = objectEntry.getValues();
 
@@ -545,13 +528,13 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Test
 	public void testExecuteWithJournalArticlePriority() throws Exception {
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
 		AssetEntry assetEntry = _assetEntryLocalService.getEntry(
 			JournalArticle.class.getName(),
-			_journalArticle.getResourcePrimKey());
+			journalArticle.getResourcePrimKey());
 
 		assetEntry.setPriority(2.5);
 
@@ -559,7 +542,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		ObjectDefinition objectDefinition =
 			_objectDefinitionLocalService.getObjectDefinition(
@@ -591,23 +574,24 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		String link = "/w/" + linkedJournalArticle.getUrlTitle();
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
-			_group.getGroupId(),
-			DDMStructureTestUtil.getSampleStructuredContent(
-				"content",
-				Collections.singletonList(
-					HashMapBuilder.put(
-						LocaleUtil.US,
-						StringBundler.concat(
-							"<p><a href=\"", link, "\">",
-							RandomTestUtil.randomString(), "</a></p>")
-					).build()),
-				LocaleUtil.toLanguageId(LocaleUtil.US)),
-			ddmStructure.getStructureKey(), null);
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				DDMStructureTestUtil.getSampleStructuredContent(
+					"content",
+					Collections.singletonList(
+						HashMapBuilder.put(
+							LocaleUtil.US,
+							StringBundler.concat(
+								"<p><a href=\"", link, "\">",
+								RandomTestUtil.randomString(), "</a></p>")
+						).build()),
+					LocaleUtil.toLanguageId(LocaleUtil.US)),
+				ddmStructure.getStructureKey(), null);
 
 		AssetEntry assetEntry = _assetEntryLocalService.getEntry(
 			JournalArticle.class.getName(),
-			_journalArticle.getResourcePrimKey());
+			journalArticle.getResourcePrimKey());
 
 		assetEntry.setPriority(2.5);
 
@@ -616,10 +600,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
 		ObjectEntry objectEntry = _getObjectEntry(
-			"CMS_MIGRATION_DDM_STRUCTURE_" +
-				_journalArticle.getDDMStructureId(),
+			"CMS_MIGRATION_DDM_STRUCTURE_" + journalArticle.getDDMStructureId(),
 			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
-				_journalArticle.getResourcePrimKey());
+				journalArticle.getResourcePrimKey());
 
 		Map<String, Serializable> values = objectEntry.getValues();
 
@@ -686,14 +669,15 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
 			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
-			_group.getGroupId(),
-			DDMStructureTestUtil.getSampleStructuredContent(),
-			ddmStructure.getStructureKey(), null);
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				DDMStructureTestUtil.getSampleStructuredContent(),
+				ddmStructure.getStructureKey(), null);
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		ObjectField objectField = _objectFieldLocalService.getObjectField(
 			objectEntry.getObjectDefinitionId(), "numeric");
@@ -732,20 +716,22 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			RandomTestUtil.randomString(65000)
 		};
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
-			_group.getGroupId(),
-			StringBundler.concat(
-				"<root available-locales=\"en_US\" default-locale=\"en_US\">",
-				_getFieldsetDynamicElement(texts[0]),
-				_getFieldsetDynamicElement(texts[1]), "</root>"),
-			ddmStructure.getStructureKey(), null);
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				StringBundler.concat(
+					"<root available-locales=\"en_US\" ",
+					"default-locale=\"en_US\">",
+					_getFieldsetDynamicElement(texts[0]),
+					_getFieldsetDynamicElement(texts[1]), "</root>"),
+				ddmStructure.getStructureKey(), null);
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
 		ObjectEntry objectEntry = _getObjectEntry(
 			"CMS_MIGRATION_DDM_STRUCTURE_" + ddmStructure.getStructureId(),
 			"CMS_MIGRATION_JOURNAL_ARTICLE_" +
-				_journalArticle.getResourcePrimKey());
+				journalArticle.getResourcePrimKey());
 
 		Assert.assertNull(
 			_objectFieldLocalService.fetchObjectField(
@@ -790,7 +776,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Test
 	public void testExecuteWithRewritePages() throws Exception {
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -809,7 +795,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 								_portal.getClassNameId(JournalArticle.class))
 						).put(
 							"classPK",
-							String.valueOf(_journalArticle.getResourcePrimKey())
+							String.valueOf(journalArticle.getResourcePrimKey())
 						).put(
 							"defaultValue", RandomTestUtil.randomString()
 						).put(
@@ -823,11 +809,11 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Layout portletLayout = LayoutTestUtil.addTypePortletLayout(_group);
 
 		String portletId = _addJournalContentPortlet(
-			portletLayout, _journalArticle);
+			portletLayout, journalArticle);
 
 		_assertSuccessful(_execute(_group.getGroupId(), true));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		ObjectDefinition objectDefinition =
 			_objectDefinitionLocalService.getObjectDefinition(
@@ -901,7 +887,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		serviceContext.setAssetTagNames(new String[] {assetTagName});
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,
 			JournalArticleConstants.CLASS_NAME_ID_DEFAULT,
@@ -923,7 +909,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			).put(
 				"anyClassTypeJournalArticleAssetRendererFactory",
 				new String[] {
-					String.valueOf(_journalArticle.getDDMStructureId())
+					String.valueOf(journalArticle.getDDMStructureId())
 				}
 			).put(
 				"queryAndOperator0", new String[] {"false"}
@@ -1076,12 +1062,12 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	public void testExecuteWithRewritePagesAndDisplayPageTemplateWithoutContent()
 		throws Exception {
 
-		_ddmStructure = DDMStructureTestUtil.addStructure(
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
 			_group.getGroupId(), JournalArticle.class.getName());
 
 		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
 			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
-			_ddmStructure.getStructureId(),
+			ddmStructure.getStructureId(),
 			_portal.getClassNameId(JournalArticle.class),
 			RandomTestUtil.randomString(), TemplateConstants.LANG_TYPE_FTL,
 			"${.vars['reserved-article-title'].data}",
@@ -1091,7 +1077,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_layoutPageTemplateEntryLocalService.addLayoutPageTemplateEntry(
 				null, TestPropsValues.getUserId(), _group.getGroupId(), 0, null,
 				_portal.getClassNameId(JournalArticle.class),
-				_ddmStructure.getStructureKey(), RandomTestUtil.randomString(),
+				ddmStructure.getStructureKey(), RandomTestUtil.randomString(),
 				LayoutPageTemplateEntryTypeConstants.DISPLAY_PAGE, 0,
 				WorkflowConstants.STATUS_APPROVED,
 				ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
@@ -1159,7 +1145,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	public void testExecuteWithRewritePagesAndDisplayPageURL()
 		throws Exception {
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -1182,7 +1168,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 							).put(
 								"classPK",
 								String.valueOf(
-									_journalArticle.getResourcePrimKey())
+									journalArticle.getResourcePrimKey())
 							).put(
 								"fieldId", "JournalArticle_displayPageURL"
 							)
@@ -1218,7 +1204,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Test
 	public void testExecuteWithRewritePagesAndDraftLayout() throws Exception {
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -1235,9 +1221,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				LayoutTestUtil.getPortletPreferences(curLayout, portletId);
 
 			portletPreferences.setValue(
-				"articleId", _journalArticle.getArticleId());
+				"articleId", journalArticle.getArticleId());
 			portletPreferences.setValue(
-				"groupId", String.valueOf(_journalArticle.getGroupId()));
+				"groupId", String.valueOf(journalArticle.getGroupId()));
 
 			portletPreferences.store();
 		}
@@ -1253,7 +1239,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_CMS_CONTENT_DISPLAY_PORTLET_NAME,
 			PortletIdCodec.decodeInstanceId(portletId));
 
-		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
 
 		for (Layout curLayout : new Layout[] {layout, draftLayout}) {
 			Assert.assertNull(
@@ -1284,7 +1270,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	public void testExecuteWithRewritePagesAndInformationTemplate()
 		throws Exception {
 
-		_journalArticle = JournalTestUtil.addArticle(
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
 			_group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
 
@@ -1312,7 +1298,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				RandomTestUtil.randomString(), TestPropsValues.getUserId(),
 				_group.getGroupId(), ddmTemplate.getTemplateId(),
 				JournalArticle.class.getName(),
-				String.valueOf(_journalArticle.getDDMStructureId()),
+				String.valueOf(journalArticle.getDDMStructureId()),
 				serviceContext);
 
 		Layout layout = LayoutTestUtil.addTypeContentLayout(_group);
@@ -1330,7 +1316,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 								_portal.getClassNameId(JournalArticle.class))
 						).put(
 							"classPK",
-							String.valueOf(_journalArticle.getResourcePrimKey())
+							String.valueOf(journalArticle.getResourcePrimKey())
 						).put(
 							"defaultValue", RandomTestUtil.randomString()
 						).put(
@@ -1354,7 +1340,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_objectDefinitionLocalService.
 				getObjectDefinitionByExternalReferenceCode(
 					"CMS_MIGRATION_DDM_STRUCTURE_" +
-						_journalArticle.getDDMStructureId(),
+						journalArticle.getDDMStructureId(),
 					_group.getCompanyId());
 
 		Assert.assertEquals(
@@ -1473,7 +1459,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
 			_group.getGroupId(), JournalArticle.class.getName());
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+		JournalTestUtil.addArticleWithXMLContent(
 			_group.getGroupId(),
 			DDMStructureTestUtil.getSampleStructuredContent(),
 			ddmStructure.getStructureKey(), null);
@@ -1536,7 +1522,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			TemplateConstants.LANG_TYPE_FTL, RandomTestUtil.randomString(),
 			LocaleUtil.US);
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+		JournalTestUtil.addArticleWithXMLContent(
 			_group.getGroupId(),
 			DDMStructureTestUtil.getSampleStructuredContent(),
 			ddmStructure.getStructureKey(), ddmTemplate.getTemplateKey());
@@ -1570,7 +1556,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		ddmTemplate = _ddmTemplateLocalService.updateDDMTemplate(ddmTemplate);
 
-		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+		JournalTestUtil.addArticleWithXMLContent(
 			_group.getGroupId(),
 			DDMStructureTestUtil.getSampleStructuredContent(),
 			ddmStructure.getStructureKey(), ddmTemplate.getTemplateKey());
@@ -1845,22 +1831,6 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return sb.toString();
 	}
 
-	private long[] _getDDMStructureIds() {
-		long[] ddmStructureIds = new long[0];
-
-		if (_ddmStructure != null) {
-			ddmStructureIds = ArrayUtil.append(
-				ddmStructureIds, _ddmStructure.getStructureId());
-		}
-
-		if (_journalArticle != null) {
-			ddmStructureIds = ArrayUtil.append(
-				ddmStructureIds, _journalArticle.getDDMStructureId());
-		}
-
-		return ddmStructureIds;
-	}
-
 	private String _getFieldsetDynamicElement(String text) {
 		return StringBundler.concat(
 			"<dynamic-element field-reference=\"fieldset\" index-type=\"\" ",
@@ -1889,6 +1859,22 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			WebKeys.THEME_DISPLAY, themeDisplay);
 
 		return mockHttpServletRequest;
+	}
+
+	private Set<Long> _getObjectDefinitionIds() {
+		DynamicQuery dynamicQuery =
+			_objectDefinitionLocalService.dynamicQuery();
+
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.eq("companyId", _group.getCompanyId()));
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.like(
+				"externalReferenceCode", "CMS_MIGRATION_%"));
+		dynamicQuery.setProjection(
+			ProjectionFactoryUtil.property("objectDefinitionId"));
+
+		return new HashSet<>(
+			_objectDefinitionLocalService.dynamicQuery(dynamicQuery));
 	}
 
 	private ObjectEntry _getObjectEntry(FileEntry fileEntry) throws Exception {
@@ -1941,7 +1927,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_group.getGroupId(), JournalArticle.class.getName(), ddmForm,
 			LocaleUtil.US);
 
-		_journalArticle = _journalArticleLocalService.addArticle(
+		JournalArticle journalArticle = _journalArticleLocalService.addArticle(
 			null, TestPropsValues.getUserId(), _group.getGroupId(),
 			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID, titleMap,
 			descriptionMap,
@@ -1976,7 +1962,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				_group.getCompanyId(), availableLocales, defaultLocale);
 		}
 
-		return _getObjectEntry(_journalArticle);
+		return _getObjectEntry(journalArticle);
 	}
 
 	private String _renderAssetPublisherWidgetTemplate(
@@ -2037,8 +2023,6 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	@Inject
 	private CompanyLocalService _companyLocalService;
 
-	private DDMStructure _ddmStructure;
-
 	@Inject
 	private DDMStructureLocalService _ddmStructureLocalService;
 
@@ -2068,8 +2052,6 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	@Inject
 	private GroupLocalService _groupLocalService;
 
-	private JournalArticle _journalArticle;
-
 	@Inject
 	private JournalArticleLocalService _journalArticleLocalService;
 
@@ -2091,6 +2073,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private ObjectFieldLocalService _objectFieldLocalService;
+
+	private Set<Long> _originalObjectDefinitionIds;
 
 	@Inject
 	private Portal _portal;
