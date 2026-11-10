@@ -27,6 +27,7 @@ import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTy
 import com.liferay.dynamic.data.mapping.model.DDMForm;
 import com.liferay.dynamic.data.mapping.model.DDMStructure;
 import com.liferay.dynamic.data.mapping.model.DDMTemplate;
+import com.liferay.dynamic.data.mapping.service.DDMStructureLocalService;
 import com.liferay.dynamic.data.mapping.service.DDMTemplateLocalService;
 import com.liferay.dynamic.data.mapping.test.util.DDMFormTestUtil;
 import com.liferay.dynamic.data.mapping.test.util.DDMStructureTestUtil;
@@ -968,6 +969,37 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithUntranslatedDDMStructureNameInDefaultLanguage()
+		throws Exception {
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName());
+
+		ddmStructure.setNameMap(ddmStructure.getNameMap(), LocaleUtil.SPAIN);
+
+		ddmStructure = _ddmStructureLocalService.updateDDMStructure(
+			ddmStructure);
+
+		JournalTestUtil.addArticleWithXMLContent(
+			_group.getGroupId(),
+			DDMStructureTestUtil.getSampleStructuredContent(),
+			ddmStructure.getStructureKey(), null);
+
+		_executeWithSiteDefaultLocale(LocaleUtil.SPAIN);
+
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.
+				getObjectDefinitionByExternalReferenceCode(
+					"CMS_MIGRATION_DDM_STRUCTURE_" +
+						ddmStructure.getStructureId(),
+					_group.getCompanyId());
+
+		Assert.assertEquals(
+			ddmStructure.getName(LocaleUtil.US),
+			objectDefinition.getLabel(LocaleUtil.SPAIN));
+	}
+
+	@Test
 	public void testExecuteWithUntranslatedDDMTemplateNameAndDifferentDefaultLanguage()
 		throws Exception {
 
@@ -1351,6 +1383,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private CompanyLocalService _companyLocalService;
+
+	@Inject
+	private DDMStructureLocalService _ddmStructureLocalService;
 
 	@Inject
 	private DDMTemplateLocalService _ddmTemplateLocalService;
