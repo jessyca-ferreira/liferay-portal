@@ -66,26 +66,13 @@ public class ObjectEntryWriter {
 		String availableDefaultLanguageId = _getAvailableDefaultLanguageId(
 			defaultLanguageId, depotGroupId, values);
 
-		for (Map.Entry<String, Serializable> entry : values.entrySet()) {
-			String key = entry.getKey();
-
-			if (key.endsWith("_i18n") && (entry.getValue() instanceof Map)) {
-				entry.setValue(
-					(Serializable)_getAvailableLocalizedValues(
-						availableDefaultLanguageId, defaultLanguageId,
-						depotGroupId,
-						(Map<String, Serializable>)entry.getValue()));
-			}
-		}
+		_putAvailableLocalizedValues(
+			availableDefaultLanguageId, defaultLanguageId, depotGroupId, values);
 
 		values.put("externalReferenceCode", externalReferenceCode);
 
-		ServiceContext serviceContext =
-			(ServiceContext)cmsMigrationContext.getServiceContext(
-			).clone();
-
-		serviceContext.setAddGroupPermissions(true);
-		serviceContext.setAddGuestPermissions(true);
+		ServiceContext serviceContext = _getServiceContext(
+			approved, cmsMigrationContext);
 
 		AssetEntry assetEntry = _assetEntryLocalService.fetchEntry(
 			className, classPK);
@@ -102,16 +89,6 @@ public class ObjectEntryWriter {
 				_getAvailableLocalizedValues(
 					availableDefaultLanguageId, defaultLanguageId, depotGroupId,
 					friendlyURLMap));
-		}
-
-		serviceContext.setUserId(cmsMigrationContext.getUserId());
-
-		if (approved) {
-			serviceContext.setWorkflowAction(WorkflowConstants.ACTION_PUBLISH);
-		}
-		else {
-			serviceContext.setWorkflowAction(
-				WorkflowConstants.ACTION_SAVE_DRAFT);
 		}
 
 		ObjectEntry objectEntry = _objectEntryLocalService.fetchObjectEntry(
@@ -221,6 +198,44 @@ public class ObjectEntryWriter {
 		}
 
 		return availableLocalizedValues;
+	}
+
+	private ServiceContext _getServiceContext(
+		boolean approved, CMSMigrationContext cmsMigrationContext) {
+
+		ServiceContext serviceContext = cmsMigrationContext.getServiceContext();
+
+		serviceContext = (ServiceContext)serviceContext.clone();
+
+		serviceContext.setAddGroupPermissions(true);
+		serviceContext.setAddGuestPermissions(true);
+		serviceContext.setUserId(cmsMigrationContext.getUserId());
+
+		if (approved) {
+			serviceContext.setWorkflowAction(WorkflowConstants.ACTION_PUBLISH);
+		}
+		else {
+			serviceContext.setWorkflowAction(
+				WorkflowConstants.ACTION_SAVE_DRAFT);
+		}
+
+		return serviceContext;
+	}
+
+	private void _putAvailableLocalizedValues(
+		String availableDefaultLanguageId, String defaultLanguageId,
+		long groupId, Map<String, Serializable> values) {
+
+		for (Map.Entry<String, Serializable> entry : values.entrySet()) {
+			String key = entry.getKey();
+
+			if (key.endsWith("_i18n") && (entry.getValue() instanceof Map)) {
+				entry.setValue(
+					(Serializable)_getAvailableLocalizedValues(
+						availableDefaultLanguageId, defaultLanguageId, groupId,
+						(Map<String, Serializable>)entry.getValue()));
+			}
+		}
 	}
 
 	private final AssetEntryLocalService _assetEntryLocalService;
