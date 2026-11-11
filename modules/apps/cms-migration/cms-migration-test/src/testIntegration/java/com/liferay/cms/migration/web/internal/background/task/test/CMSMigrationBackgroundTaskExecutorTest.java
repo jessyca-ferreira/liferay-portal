@@ -257,6 +257,40 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithAttachmentWithDisallowedFileExtension()
+		throws Exception {
+
+		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
+
+		JournalArticle journalArticle = _addJournalArticleWithImage(
+			RandomTestUtil.randomString(), fileEntry,
+			LocaleUtil.getSiteDefault());
+
+		try (ConfigurationTemporarySwapper configurationTemporarySwapper =
+				new ConfigurationTemporarySwapper(
+					_PID_DL_CONFIGURATION,
+					HashMapDictionaryBuilder.<String, Object>put(
+						"fileExtensions", new String[] {".pdf"}
+					).build())) {
+
+			_assertSuccessful(_execute(_group.getGroupId(), false));
+		}
+
+		FileEntry attachmentFileEntry = _getAttachmentFileEntry(fileEntry);
+
+		Assert.assertEquals(
+			fileEntry.getExtension(), attachmentFileEntry.getExtension());
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertEquals(
+			attachmentFileEntry.getFileEntryId(),
+			GetterUtil.getLong(values.get("image")));
+	}
+
+	@Test
 	public void testExecuteWithBlogsEntryReadingTime() throws Exception {
 		BlogsEntry blogsEntry = _blogsEntryLocalService.addEntry(
 			TestPropsValues.getUserId(), RandomTestUtil.randomString(),
@@ -1662,6 +1696,44 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithSmallImageAttachmentWithDisallowedFileExtension()
+		throws Exception {
+
+		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
+
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		journalArticle.setSmallImageId(fileEntry.getFileEntryId());
+		journalArticle.setSmallImageSource(
+			JournalArticleConstants.SMALL_IMAGE_SOURCE_DOCUMENTS_AND_MEDIA);
+
+		journalArticle = _journalArticleLocalService.updateJournalArticle(
+			journalArticle);
+
+		try (ConfigurationTemporarySwapper configurationTemporarySwapper =
+				new ConfigurationTemporarySwapper(
+					_PID_DL_CONFIGURATION,
+					HashMapDictionaryBuilder.<String, Object>put(
+						"fileExtensions", new String[] {".pdf"}
+					).build())) {
+
+			_assertSuccessful(_execute(_group.getGroupId(), false));
+		}
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		FileEntry attachmentFileEntry = _dlAppLocalService.getFileEntry(
+			GetterUtil.getLong(values.get("smallImage")));
+
+		Assert.assertEquals(
+			fileEntry.getExtension(), attachmentFileEntry.getExtension());
+	}
+
+	@Test
 	public void testExecuteWithUnavailableDefaultLanguage() throws Exception {
 		Map<Locale, String> contentMap = HashMapBuilder.put(
 			LocaleUtil.US, RandomTestUtil.randomString()
@@ -2380,6 +2452,9 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	private static final String _PID_BLOGS_PORTLET_INSTANCE_CONFIGURATION =
 		"com.liferay.blogs.web.internal.configuration." +
 			"BlogsPortletInstanceConfiguration";
+
+	private static final String _PID_DL_CONFIGURATION =
+		"com.liferay.document.library.configuration.DLConfiguration";
 
 	@Inject
 	private AssetEntryLocalService _assetEntryLocalService;
