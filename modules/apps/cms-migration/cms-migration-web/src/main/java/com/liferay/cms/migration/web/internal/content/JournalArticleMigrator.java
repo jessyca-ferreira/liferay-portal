@@ -9,8 +9,10 @@ import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.cms.migration.web.internal.structure.DDMFormValuesConverter;
 import com.liferay.cms.migration.web.internal.structure.ObjectDefinitionMigrator;
+import com.liferay.cms.migration.web.internal.structure.ObjectEntryValues;
 import com.liferay.dynamic.data.mapping.model.DDMFieldAttributeTable;
 import com.liferay.dynamic.data.mapping.model.DDMFieldTable;
+import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.dynamic.data.mapping.model.Value;
 import com.liferay.dynamic.data.mapping.service.DDMFieldLocalService;
 import com.liferay.dynamic.data.mapping.storage.DDMFormFieldValue;
@@ -124,8 +126,12 @@ public class JournalArticleMigrator {
 				EXTERNAL_REFERENCE_CODE_PREFIX_JOURNAL_ARTICLE +
 					resourcePrimKey;
 
-		Map<String, Serializable> values = _ddmFormValuesConverter.getValues(
-			cmsMigrationContext, _getDDMFormValues(journalArticle));
+		ObjectEntryValues objectEntryValues =
+			_ddmFormValuesConverter.getObjectEntryValues(
+				cmsMigrationContext, _getDDMFormValues(journalArticle),
+				objectDefinition.getObjectDefinitionId());
+
+		Map<String, Serializable> values = objectEntryValues.getValues();
 
 		Map<Locale, String> descriptionMap = new HashMap<>();
 		Map<Locale, String> titleMap = new HashMap<>();
@@ -170,6 +176,9 @@ public class JournalArticleMigrator {
 				journalArticle.getFriendlyURLMap()),
 			journalArticle.getCreateDate(), journalArticle.getModifiedDate(),
 			approved);
+
+		_writeRepeatableGroupItems(
+			approved, cmsMigrationContext, objectEntry, objectEntryValues);
 
 		cmsMigrationContext.getCMSMigrationReport(
 		).increment(
@@ -386,6 +395,33 @@ public class JournalArticleMigrator {
 		}
 
 		return LocalizedValuesUtil.truncate(title, _TITLE_MAX_LENGTH);
+	}
+
+	private void _writeRepeatableGroupItems(
+			boolean approved, CMSMigrationContext cmsMigrationContext,
+			ObjectEntry objectEntry, ObjectEntryValues objectEntryValues)
+		throws PortalException {
+
+		Map<DDMFormField, List<ObjectEntryValues>> repeatableGroupItemsMap =
+			objectEntryValues.getRepeatableGroupItemsMap();
+
+		for (Map.Entry<DDMFormField, List<ObjectEntryValues>> entry :
+				repeatableGroupItemsMap.entrySet()) {
+
+			List<ObjectEntryValues> itemObjectEntryValuesList =
+				entry.getValue();
+
+			List<ObjectEntry> itemObjectEntries =
+				_objectEntryWriter.writeRepeatableGroupItems(
+					approved, cmsMigrationContext, entry.getKey(),
+					itemObjectEntryValuesList, objectEntry);
+
+			for (int i = 0; i < itemObjectEntries.size(); i++) {
+				_writeRepeatableGroupItems(
+					approved, cmsMigrationContext, itemObjectEntries.get(i),
+					itemObjectEntryValuesList.get(i));
+			}
+		}
 	}
 
 	private static final int _TITLE_MAX_LENGTH = 280;

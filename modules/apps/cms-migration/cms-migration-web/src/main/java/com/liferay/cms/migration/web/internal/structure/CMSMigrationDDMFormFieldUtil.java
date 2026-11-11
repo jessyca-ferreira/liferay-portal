@@ -9,6 +9,7 @@ import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTypeConstants;
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.util.ArrayUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
@@ -126,6 +127,14 @@ public class CMSMigrationDDMFormFieldUtil {
 		return ObjectFieldConstants.DB_TYPE_STRING;
 	}
 
+	public static DDMFormField getItemDDMFormField(DDMFormField ddmFormField) {
+		DDMFormField itemDDMFormField = new DDMFormField(ddmFormField);
+
+		itemDDMFormField.setRepeatable(false);
+
+		return itemDDMFormField;
+	}
+
 	/**
 	 * Returns the fields that become object fields. A repeatable field is
 	 * stored whole, nested fields included, as JSON in one object field. A
@@ -201,6 +210,24 @@ public class CMSMigrationDDMFormFieldUtil {
 		return name;
 	}
 
+	public static String getRepeatableGroupExternalReferenceCode(
+		DDMFormField ddmFormField,
+		String objectDefinitionExternalReferenceCode) {
+
+		return StringBundler.concat(
+			objectDefinitionExternalReferenceCode, StringPool.UNDERLINE,
+			getObjectFieldName(ddmFormField));
+	}
+
+	public static String getRepeatableGroupItemExternalReferenceCode(
+		DDMFormField ddmFormField, int index,
+		String objectEntryExternalReferenceCode) {
+
+		return StringBundler.concat(
+			objectEntryExternalReferenceCode, StringPool.UNDERLINE,
+			getObjectFieldName(ddmFormField), StringPool.UNDERLINE, index);
+	}
+
 	public static boolean isAttachmentField(DDMFormField ddmFormField) {
 		return Objects.equals(
 			getBusinessType(ddmFormField),
@@ -255,6 +282,16 @@ public class CMSMigrationDDMFormFieldUtil {
 		return false;
 	}
 
+	public static boolean isRepeatableGroupField(
+		DDMFormField ddmFormField, boolean migrateRepeatableFields) {
+
+		if (!migrateRepeatableFields || !ddmFormField.isRepeatable()) {
+			return false;
+		}
+
+		return _isRepeatableGroupFieldSupported(ddmFormField);
+	}
+
 	public static boolean isTypeImage(DDMFormField ddmFormField) {
 		String type = ddmFormField.getType();
 
@@ -270,6 +307,75 @@ public class CMSMigrationDDMFormFieldUtil {
 	public static String unescapeJSONFieldValue(String value) {
 		return StringUtil.replace(
 			value, StringPool.AMPERSAND, StringPool.SEMICOLON, _unescapeMap);
+	}
+
+	private static boolean _isRepeatableGroupFieldSupported(
+		DDMFormField ddmFormField) {
+
+		if (!Objects.equals(
+				ddmFormField.getType(), DDMFormFieldTypeConstants.FIELDSET)) {
+
+			return _isRepeatableGroupItemFieldSupported(ddmFormField);
+		}
+
+		boolean leafFieldFound = false;
+
+		for (DDMFormField nestedDDMFormField :
+				ddmFormField.getNestedDDMFormFields()) {
+
+			if (isIgnoredField(nestedDDMFormField)) {
+				continue;
+			}
+
+			if (nestedDDMFormField.isRepeatable()) {
+				return false;
+			}
+
+			if (Objects.equals(
+					nestedDDMFormField.getType(),
+					DDMFormFieldTypeConstants.FIELDSET)) {
+
+				if (!_isRepeatableGroupFieldSupported(nestedDDMFormField)) {
+					return false;
+				}
+			}
+			else if (!_isRepeatableGroupItemFieldSupported(
+						nestedDDMFormField)) {
+
+				return false;
+			}
+
+			leafFieldFound = true;
+		}
+
+		return leafFieldFound;
+	}
+
+	private static boolean _isRepeatableGroupItemFieldSupported(
+		DDMFormField ddmFormField) {
+
+		String type = ddmFormField.getType();
+
+		if ((type.equals(DDMFormFieldTypeConstants.RADIO) ||
+			 type.equals(DDMFormFieldTypeConstants.SELECT)) &&
+			!ddmFormField.isMultiple()) {
+
+			return true;
+		}
+
+		return ArrayUtil.contains(
+			new String[] {
+				DDMFormFieldTypeConstants.CHECKBOX,
+				DDMFormFieldTypeConstants.DATE,
+				DDMFormFieldTypeConstants.DATE_TIME,
+				DDMFormFieldTypeConstants.DDM_IMAGE,
+				DDMFormFieldTypeConstants.DOCUMENT_LIBRARY,
+				DDMFormFieldTypeConstants.IMAGE,
+				DDMFormFieldTypeConstants.NUMERIC,
+				DDMFormFieldTypeConstants.RICH_TEXT,
+				DDMFormFieldTypeConstants.TEXT
+			},
+			type);
 	}
 
 	private static String _toAlphanumeric(String s) {

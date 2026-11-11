@@ -27,17 +27,20 @@ import com.liferay.object.constants.ObjectDefinitionSettingConstants;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.constants.ObjectFieldSettingConstants;
 import com.liferay.object.constants.ObjectFolderConstants;
+import com.liferay.object.constants.ObjectRelationshipConstants;
 import com.liferay.object.field.builder.ObjectFieldBuilder;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectDefinitionSetting;
 import com.liferay.object.model.ObjectField;
 import com.liferay.object.model.ObjectFieldSetting;
 import com.liferay.object.model.ObjectFolder;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectDefinitionSettingLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.object.service.ObjectFieldSettingLocalService;
 import com.liferay.object.service.ObjectFolderLocalService;
+import com.liferay.object.service.ObjectRelationshipLocalService;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
@@ -45,6 +48,7 @@ import com.liferay.portal.kernel.language.Language;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.ListUtil;
 import com.liferay.portal.kernel.util.LocaleUtil;
+import com.liferay.portal.kernel.util.StringUtil;
 import com.liferay.portal.kernel.util.Validator;
 
 import java.util.ArrayList;
@@ -55,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * Creates the CMS object definitions that replace Web Content structures,
@@ -73,7 +78,8 @@ public class ObjectDefinitionMigrator {
 		ObjectDefinitionSettingLocalService objectDefinitionSettingLocalService,
 		ObjectFieldLocalService objectFieldLocalService,
 		ObjectFieldSettingLocalService objectFieldSettingLocalService,
-		ObjectFolderLocalService objectFolderLocalService) {
+		ObjectFolderLocalService objectFolderLocalService,
+		ObjectRelationshipLocalService objectRelationshipLocalService) {
 
 		_ddmStructureLocalService = ddmStructureLocalService;
 		_language = language;
@@ -84,6 +90,7 @@ public class ObjectDefinitionMigrator {
 		_objectFieldLocalService = objectFieldLocalService;
 		_objectFieldSettingLocalService = objectFieldSettingLocalService;
 		_objectFolderLocalService = objectFolderLocalService;
+		_objectRelationshipLocalService = objectRelationshipLocalService;
 	}
 
 	public ObjectDefinition getExternalVideoObjectDefinition(
@@ -156,12 +163,44 @@ public class ObjectDefinitionMigrator {
 
 		DDMForm ddmForm = ddmStructure.getFullHierarchyDDMForm();
 
+		List<DDMFormField> ddmFormFields = new ArrayList<>();
+		List<DDMFormField> repeatableGroupDDMFormFields = new ArrayList<>();
+
+		for (DDMFormField ddmFormField :
+				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+					ddmForm.getDDMFormFields())) {
+
+			if (CMSMigrationDDMFormFieldUtil.isRepeatableGroupField(
+					ddmFormField,
+					cmsMigrationContext.isMigrateRepeatableFields())) {
+
+				repeatableGroupDDMFormFields.add(ddmFormField);
+
+				continue;
+			}
+
+			if (cmsMigrationContext.isMigrateRepeatableFields() &&
+				ddmFormField.isRepeatable()) {
+
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						"Migrated the repeatable field ",
+						ddmFormField.getFieldReference(), " of the structure ",
+						ddmStructure.getStructureKey(),
+						" as JSON because it contains nested repeatable ",
+						"fields or unsupported field types")
+				);
+			}
+
+			ddmFormFields.add(ddmFormField);
+		}
+
+		String listTypeKey = String.valueOf(ddmStructure.getStructureId());
+
 		objectFields.addAll(
 			_getDDMFormObjectFields(
-				cmsMigrationContext,
-				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
-					ddmForm.getDDMFormFields()),
-				String.valueOf(ddmStructure.getStructureId())));
+				cmsMigrationContext, ddmFormFields, listTypeKey));
 
 		Map<Locale, String> nameMap = ddmStructure.getNameMap();
 
@@ -175,6 +214,19 @@ public class ObjectDefinitionMigrator {
 			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_DDM_STRUCTURE +
 				ddmStructure.getStructureId(),
 			objectFields);
+
+		for (DDMFormField ddmFormField : repeatableGroupDDMFormFields) {
+			ObjectDefinition repeatableGroupObjectDefinition =
+				_getOrAddRepeatableGroupObjectDefinition(
+					cmsMigrationContext, ddmFormField, listTypeKey,
+					objectDefinition, ddmStructure.getStructureId());
+
+			cmsMigrationContext.addRepeatableGroupObjectRelationship(
+				ddmFormField,
+				_getOrAddRepeatableGroupObjectRelationship(
+					cmsMigrationContext, ddmFormField, objectDefinition,
+					repeatableGroupObjectDefinition));
+		}
 
 		cmsMigrationContext.addDDMStructure(ddmStructure);
 		cmsMigrationContext.addObjectDefinition(
@@ -635,6 +687,192 @@ public class ObjectDefinitionMigrator {
 		return objectDefinition;
 	}
 
+	private ObjectDefinition _getOrAddRepeatableGroupObjectDefinition(
+			CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+			String listTypeKey, ObjectDefinition objectDefinition,
+			long structureId)
+		throws PortalException {
+
+		String externalReferenceCode =
+			CMSMigrationDDMFormFieldUtil.
+				getRepeatableGroupExternalReferenceCode(
+					ddmFormField, objectDefinition.getExternalReferenceCode());
+
+		ObjectDefinition repeatableGroupObjectDefinition =
+			_objectDefinitionLocalService.
+				fetchObjectDefinitionByExternalReferenceCode(
+					externalReferenceCode, cmsMigrationContext.getCompanyId());
+
+		List<ObjectField> objectFields = _getDDMFormObjectFields(
+			cmsMigrationContext,
+			CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+				ListUtil.fromArray(
+					CMSMigrationDDMFormFieldUtil.getItemDDMFormField(
+						ddmFormField))),
+			listTypeKey);
+
+		if (repeatableGroupObjectDefinition == null) {
+			ObjectFolder objectFolder =
+				_objectFolderLocalService.
+					getObjectFolderByExternalReferenceCode(
+						ObjectFolderConstants.
+							EXTERNAL_REFERENCE_CODE_STRUCTURE_REPEATABLE_GROUPS,
+						cmsMigrationContext.getCompanyId());
+
+			Map<Locale, String> labelMap = _getLabelMap(
+				ddmFormField.getLabel(),
+				CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
+
+			repeatableGroupObjectDefinition =
+				_objectDefinitionLocalService.addCustomObjectDefinition(
+					externalReferenceCode, cmsMigrationContext.getUserId(),
+					objectFolder.getObjectFolderId(), null,
+					Collections.emptyMap(), true, true, false, true, false,
+					true, true, false, true, null, labelMap,
+					_getRepeatableGroupObjectDefinitionName(
+						cmsMigrationContext, ddmFormField, structureId),
+					null, null, labelMap, false,
+					ObjectDefinitionConstants.SCOPE_DEPOT,
+					ObjectDefinitionConstants.STORAGE_TYPE_DEFAULT,
+					ListUtil.fromArray(
+						_createObjectDefinitionSetting(
+							ObjectDefinitionSettingConstants.
+								NAME_ACCEPT_ALL_GROUPS,
+							Boolean.TRUE.toString())),
+					objectFields, Collections.emptyList(),
+					cmsMigrationContext.getServiceContext());
+
+			repeatableGroupObjectDefinition =
+				_objectDefinitionLocalService.publishCustomObjectDefinition(
+					cmsMigrationContext.getUserId(),
+					repeatableGroupObjectDefinition.getObjectDefinitionId());
+
+			cmsMigrationContext.getCMSMigrationReport(
+			).increment(
+				"object-definitions"
+			);
+		}
+		else {
+			_addMissingObjectFields(
+				cmsMigrationContext, repeatableGroupObjectDefinition,
+				objectFields);
+		}
+
+		return repeatableGroupObjectDefinition;
+	}
+
+	private ObjectRelationship _getOrAddRepeatableGroupObjectRelationship(
+			CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+			ObjectDefinition objectDefinition,
+			ObjectDefinition repeatableGroupObjectDefinition)
+		throws PortalException {
+
+		String externalReferenceCode =
+			CMSMigrationDDMFormFieldUtil.
+				getRepeatableGroupExternalReferenceCode(
+					ddmFormField, objectDefinition.getExternalReferenceCode());
+
+		ObjectRelationship objectRelationship =
+			_objectRelationshipLocalService.
+				fetchObjectRelationshipByExternalReferenceCode(
+					externalReferenceCode, cmsMigrationContext.getCompanyId(),
+					objectDefinition.getObjectDefinitionId());
+
+		if (objectRelationship != null) {
+			return objectRelationship;
+		}
+
+		objectRelationship =
+			_objectRelationshipLocalService.addObjectRelationship(
+				externalReferenceCode, cmsMigrationContext.getUserId(),
+				objectDefinition.getObjectDefinitionId(),
+				repeatableGroupObjectDefinition.getObjectDefinitionId(), 0,
+				ObjectRelationshipConstants.DELETION_TYPE_CASCADE,
+				Collections.emptyMap(), true,
+				repeatableGroupObjectDefinition.getLabelMap(),
+				_getRepeatableGroupObjectRelationshipName(
+					ddmFormField, objectDefinition,
+					repeatableGroupObjectDefinition),
+				false, ObjectRelationshipConstants.TYPE_ONE_TO_MANY, null);
+
+		ObjectDefinitionSetting objectDefinitionSetting =
+			_objectDefinitionSettingLocalService.fetchObjectDefinitionSetting(
+				repeatableGroupObjectDefinition.getObjectDefinitionId(),
+				ObjectDefinitionSettingConstants.
+					NAME_ALLOW_STANDALONE_OBJECT_ENTRY);
+
+		if (objectDefinitionSetting == null) {
+			_objectDefinitionSettingLocalService.addObjectDefinitionSetting(
+				cmsMigrationContext.getUserId(),
+				repeatableGroupObjectDefinition.getObjectDefinitionId(),
+				ObjectDefinitionSettingConstants.
+					NAME_ALLOW_STANDALONE_OBJECT_ENTRY,
+				Boolean.FALSE.toString());
+		}
+
+		return objectRelationship;
+	}
+
+	private String _getRepeatableGroupObjectDefinitionName(
+		CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+		long structureId) {
+
+		String objectFieldName = StringUtil.upperCaseFirstLetter(
+			CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
+
+		return _getUniqueName(
+			name -> {
+				ObjectDefinition objectDefinition =
+					_objectDefinitionLocalService.fetchObjectDefinition(
+						cmsMigrationContext.getCompanyId(), "C_" + name);
+
+				return objectDefinition != null;
+			},
+			_NAME_MAX_LENGTH,
+			"CMSMigrationGroup" + structureId + objectFieldName);
+	}
+
+	private String _getRepeatableGroupObjectRelationshipName(
+		DDMFormField ddmFormField, ObjectDefinition objectDefinition,
+		ObjectDefinition repeatableGroupObjectDefinition) {
+
+		String pkObjectFieldName = objectDefinition.getPKObjectFieldName();
+
+		String objectFieldName = StringUtil.upperCaseFirstLetter(
+			CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
+
+		return _getUniqueName(
+			name -> {
+				for (ObjectDefinition curObjectDefinition :
+						ListUtil.fromArray(
+							objectDefinition,
+							repeatableGroupObjectDefinition)) {
+
+					long objectDefinitionId =
+						curObjectDefinition.getObjectDefinitionId();
+
+					ObjectField objectField =
+						_objectFieldLocalService.fetchObjectField(
+							objectDefinitionId, name);
+					ObjectRelationship objectRelationship =
+						_objectRelationshipLocalService.
+							fetchObjectRelationshipByObjectDefinitionId(
+								objectDefinitionId, name);
+
+					if ((objectField != null) || (objectRelationship != null)) {
+						return true;
+					}
+				}
+
+				return false;
+			},
+			Math.min(
+				_NAME_MAX_LENGTH,
+				ObjectFieldConstants.DB_COLUMN_NAME_MAX_LENGTH -
+					pkObjectFieldName.length() - 3),
+			"group" + objectFieldName);
+	}
+
 	private List<ObjectField> _getSystemObjectFields() {
 		return ListUtil.fromArray(
 			_createObjectField(
@@ -656,6 +894,29 @@ public class ObjectDefinitionMigrator {
 				false));
 	}
 
+	private String _getUniqueName(
+		Predicate<String> existsPredicate, int maxLength, String name) {
+
+		if (name.length() > maxLength) {
+			name = name.substring(0, maxLength);
+		}
+
+		String uniqueName = name;
+
+		for (int i = 1; existsPredicate.test(uniqueName); i++) {
+			String suffix = String.valueOf(i);
+
+			String prefix = name.substring(
+				0, Math.min(name.length(), maxLength - suffix.length()));
+
+			uniqueName = prefix + suffix;
+		}
+
+		return uniqueName;
+	}
+
+	private static final int _NAME_MAX_LENGTH = 41;
+
 	private final DDMStructureLocalService _ddmStructureLocalService;
 	private final Language _language;
 	private final ListTypeDefinitionLocalService
@@ -667,5 +928,7 @@ public class ObjectDefinitionMigrator {
 	private final ObjectFieldSettingLocalService
 		_objectFieldSettingLocalService;
 	private final ObjectFolderLocalService _objectFolderLocalService;
+	private final ObjectRelationshipLocalService
+		_objectRelationshipLocalService;
 
 }

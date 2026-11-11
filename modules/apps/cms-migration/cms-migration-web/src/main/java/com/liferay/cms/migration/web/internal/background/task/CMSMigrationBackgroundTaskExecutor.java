@@ -65,6 +65,7 @@ import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.object.service.ObjectFieldSettingLocalService;
 import com.liferay.object.service.ObjectFolderLocalService;
+import com.liferay.object.service.ObjectRelationshipLocalService;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTask;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskExecutor;
 import com.liferay.portal.kernel.backgroundtask.BackgroundTaskResult;
@@ -259,11 +260,12 @@ public class CMSMigrationBackgroundTaskExecutor
 				_ddmStructureLocalService, _language,
 				_listTypeDefinitionLocalService, _objectDefinitionLocalService,
 				_objectDefinitionSettingLocalService, _objectFieldLocalService,
-				_objectFieldSettingLocalService, _objectFolderLocalService);
+				_objectFieldSettingLocalService, _objectFolderLocalService,
+				_objectRelationshipLocalService);
 
 		ObjectEntryWriter objectEntryWriter = new ObjectEntryWriter(
 			_assetEntryLocalService, _language, _objectEntryLocalService,
-			_portal, _userLocalService);
+			_objectFieldLocalService, _portal, _userLocalService);
 
 		BlogsEntryMigrator blogsEntryMigrator = new BlogsEntryMigrator(
 			attachmentCopier, _blogsEntryLocalService, htmlReferenceRewriter,
@@ -491,6 +493,9 @@ public class CMSMigrationBackgroundTaskExecutor
 
 	@Reference
 	private ObjectFolderLocalService _objectFolderLocalService;
+
+	@Reference
+	private ObjectRelationshipLocalService _objectRelationshipLocalService;
 
 	@Reference
 	private PermissionCheckerFactory _permissionCheckerFactory;

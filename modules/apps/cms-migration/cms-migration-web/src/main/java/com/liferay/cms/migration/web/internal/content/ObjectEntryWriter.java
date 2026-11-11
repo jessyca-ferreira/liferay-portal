@@ -8,9 +8,15 @@ package com.liferay.cms.migration.web.internal.content;
 import com.liferay.asset.kernel.model.AssetEntry;
 import com.liferay.asset.kernel.service.AssetEntryLocalService;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
+import com.liferay.cms.migration.web.internal.structure.CMSMigrationDDMFormFieldUtil;
+import com.liferay.cms.migration.web.internal.structure.ObjectEntryValues;
+import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectField;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.object.service.ObjectEntryLocalService;
+import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.language.Language;
@@ -23,8 +29,10 @@ import com.liferay.portal.kernel.workflow.WorkflowConstants;
 
 import java.io.Serializable;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -42,12 +50,14 @@ public class ObjectEntryWriter {
 
 	public ObjectEntryWriter(
 		AssetEntryLocalService assetEntryLocalService, Language language,
-		ObjectEntryLocalService objectEntryLocalService, Portal portal,
+		ObjectEntryLocalService objectEntryLocalService,
+		ObjectFieldLocalService objectFieldLocalService, Portal portal,
 		UserLocalService userLocalService) {
 
 		_assetEntryLocalService = assetEntryLocalService;
 		_language = language;
 		_objectEntryLocalService = objectEntryLocalService;
+		_objectFieldLocalService = objectFieldLocalService;
 		_portal = portal;
 		_userLocalService = userLocalService;
 	}
@@ -137,6 +147,99 @@ public class ObjectEntryWriter {
 		cmsMigrationContext.addObjectEntry(className, classPK, objectEntry);
 
 		return objectEntry;
+	}
+
+	public List<ObjectEntry> writeRepeatableGroupItems(
+			boolean approved, CMSMigrationContext cmsMigrationContext,
+			DDMFormField ddmFormField,
+			List<ObjectEntryValues> itemObjectEntryValuesList,
+			ObjectEntry objectEntry)
+		throws PortalException {
+
+		List<ObjectEntry> itemObjectEntries = new ArrayList<>();
+
+		String defaultLanguageId = objectEntry.getDefaultLanguageId();
+
+		long depotGroupId = cmsMigrationContext.getDepotGroupId();
+
+		ObjectRelationship objectRelationship =
+			cmsMigrationContext.getRepeatableGroupObjectRelationship(
+				ddmFormField, objectEntry.getObjectDefinitionId());
+
+		ObjectField objectField = _objectFieldLocalService.getObjectField(
+			objectRelationship.getObjectFieldId2());
+
+		long repeatableGroupObjectDefinitionId =
+			objectRelationship.getObjectDefinitionId2();
+
+		ServiceContext serviceContext = _getServiceContext(
+			approved, cmsMigrationContext);
+
+		for (int i = 0; i < itemObjectEntryValuesList.size(); i++) {
+			ObjectEntryValues itemObjectEntryValues =
+				itemObjectEntryValuesList.get(i);
+
+			Map<String, Serializable> values = new HashMap<>(
+				itemObjectEntryValues.getValues());
+
+			_putAvailableLocalizedValues(
+				defaultLanguageId, defaultLanguageId, depotGroupId, values);
+
+			String externalReferenceCode =
+				CMSMigrationDDMFormFieldUtil.
+					getRepeatableGroupItemExternalReferenceCode(
+						ddmFormField, i,
+						objectEntry.getExternalReferenceCode());
+
+			values.put("externalReferenceCode", externalReferenceCode);
+			values.put(objectField.getName(), objectEntry.getObjectEntryId());
+
+			ObjectEntry itemObjectEntry =
+				_objectEntryLocalService.fetchObjectEntry(
+					externalReferenceCode, depotGroupId,
+					repeatableGroupObjectDefinitionId);
+
+			if (itemObjectEntry == null) {
+				itemObjectEntry = _objectEntryLocalService.addObjectEntry(
+					depotGroupId, serviceContext.getUserId(),
+					repeatableGroupObjectDefinitionId,
+					objectEntry.getObjectEntryFolderId(), defaultLanguageId,
+					values, serviceContext);
+			}
+			else {
+				itemObjectEntry = _objectEntryLocalService.updateObjectEntry(
+					serviceContext.getUserId(),
+					itemObjectEntry.getObjectEntryId(),
+					objectEntry.getObjectEntryFolderId(), values,
+					serviceContext);
+			}
+
+			itemObjectEntry.setUserId(objectEntry.getUserId());
+			itemObjectEntry.setUserName(objectEntry.getUserName());
+			itemObjectEntry.setCreateDate(objectEntry.getCreateDate());
+			itemObjectEntry.setModifiedDate(objectEntry.getModifiedDate());
+
+			itemObjectEntries.add(
+				_objectEntryLocalService.updateObjectEntry(itemObjectEntry));
+		}
+
+		for (int i = itemObjectEntryValuesList.size();; i++) {
+			ObjectEntry itemObjectEntry =
+				_objectEntryLocalService.fetchObjectEntry(
+					CMSMigrationDDMFormFieldUtil.
+						getRepeatableGroupItemExternalReferenceCode(
+							ddmFormField, i,
+							objectEntry.getExternalReferenceCode()),
+					depotGroupId, repeatableGroupObjectDefinitionId);
+
+			if (itemObjectEntry == null) {
+				break;
+			}
+
+			_objectEntryLocalService.deleteObjectEntry(itemObjectEntry);
+		}
+
+		return itemObjectEntries;
 	}
 
 	private String _getAvailableDefaultLanguageId(
@@ -241,6 +344,7 @@ public class ObjectEntryWriter {
 	private final AssetEntryLocalService _assetEntryLocalService;
 	private final Language _language;
 	private final ObjectEntryLocalService _objectEntryLocalService;
+	private final ObjectFieldLocalService _objectFieldLocalService;
 	private final Portal _portal;
 	private final UserLocalService _userLocalService;
 

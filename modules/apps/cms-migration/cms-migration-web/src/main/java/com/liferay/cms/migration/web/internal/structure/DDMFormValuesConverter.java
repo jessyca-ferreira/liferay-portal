@@ -20,6 +20,7 @@ import com.liferay.journal.service.JournalArticleLocalService;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.json.JSONArray;
@@ -72,20 +73,31 @@ public class DDMFormValuesConverter {
 		_objectDefinitionMigrator = objectDefinitionMigrator;
 	}
 
+	public ObjectEntryValues getObjectEntryValues(
+		CMSMigrationContext cmsMigrationContext, DDMFormValues ddmFormValues,
+		long objectDefinitionId) {
+
+		ObjectEntryValues objectEntryValues = new ObjectEntryValues();
+
+		if (ddmFormValues == null) {
+			return objectEntryValues;
+		}
+
+		_putObjectEntryValues(
+			cmsMigrationContext, ddmFormValues.getDDMFormFieldValues(),
+			ddmFormValues.getDefaultLocale(), objectDefinitionId,
+			objectEntryValues);
+
+		return objectEntryValues;
+	}
+
 	public Map<String, Serializable> getValues(
 		CMSMigrationContext cmsMigrationContext, DDMFormValues ddmFormValues) {
 
-		Map<String, Serializable> values = new HashMap<>();
+		ObjectEntryValues objectEntryValues = getObjectEntryValues(
+			cmsMigrationContext, ddmFormValues, 0);
 
-		if (ddmFormValues == null) {
-			return values;
-		}
-
-		_putValues(
-			cmsMigrationContext, ddmFormValues.getDDMFormFieldValues(),
-			ddmFormValues.getDefaultLocale(), values);
-
-		return values;
+		return objectEntryValues.getValues();
 	}
 
 	/**
@@ -202,6 +214,31 @@ public class DDMFormValuesConverter {
 		}
 
 		return null;
+	}
+
+	private ObjectEntryValues _getItemObjectEntryValues(
+		CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+		DDMFormFieldValue ddmFormFieldValue, Locale defaultLocale,
+		long objectDefinitionId) {
+
+		ObjectEntryValues objectEntryValues = new ObjectEntryValues();
+
+		if (!Objects.equals(
+				ddmFormField.getType(), DDMFormFieldTypeConstants.FIELDSET)) {
+
+			_putLeafValue(
+				cmsMigrationContext,
+				CMSMigrationDDMFormFieldUtil.getItemDDMFormField(ddmFormField),
+				ddmFormFieldValue, defaultLocale,
+				objectEntryValues.getValues());
+		}
+
+		_putObjectEntryValues(
+			cmsMigrationContext,
+			ddmFormFieldValue.getNestedDDMFormFieldValues(), defaultLocale,
+			objectDefinitionId, objectEntryValues);
+
+		return objectEntryValues;
 	}
 
 	private Serializable _getObjectFieldValue(
@@ -496,10 +533,12 @@ public class DDMFormValuesConverter {
 		}
 	}
 
-	private void _putValues(
+	private void _putObjectEntryValues(
 		CMSMigrationContext cmsMigrationContext,
 		List<DDMFormFieldValue> ddmFormFieldValues, Locale defaultLocale,
-		Map<String, Serializable> values) {
+		long objectDefinitionId, ObjectEntryValues objectEntryValues) {
+
+		Map<String, Serializable> values = objectEntryValues.getValues();
 
 		Map<String, List<DDMFormFieldValue>> repeatableDDMFormFieldValuesMap =
 			new LinkedHashMap<>();
@@ -509,6 +548,32 @@ public class DDMFormValuesConverter {
 
 			if ((ddmFormField == null) ||
 				CMSMigrationDDMFormFieldUtil.isIgnoredField(ddmFormField)) {
+
+				continue;
+			}
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.getRepeatableGroupObjectRelationship(
+					ddmFormField, objectDefinitionId);
+
+			if (objectRelationship != null) {
+				ObjectEntryValues itemObjectEntryValues =
+					_getItemObjectEntryValues(
+						cmsMigrationContext, ddmFormField, ddmFormFieldValue,
+						defaultLocale,
+						objectRelationship.getObjectDefinitionId2());
+
+				Map<DDMFormField, List<ObjectEntryValues>>
+					repeatableGroupItemsMap =
+						objectEntryValues.getRepeatableGroupItemsMap();
+
+				List<ObjectEntryValues> itemObjectEntryValuesList =
+					repeatableGroupItemsMap.computeIfAbsent(
+						ddmFormField, key -> new ArrayList<>());
+
+				if (!itemObjectEntryValues.isEmpty()) {
+					itemObjectEntryValuesList.add(itemObjectEntryValues);
+				}
 
 				continue;
 			}
@@ -534,10 +599,10 @@ public class DDMFormValuesConverter {
 					defaultLocale, values);
 			}
 
-			_putValues(
+			_putObjectEntryValues(
 				cmsMigrationContext,
 				ddmFormFieldValue.getNestedDDMFormFieldValues(), defaultLocale,
-				values);
+				objectDefinitionId, objectEntryValues);
 		}
 
 		for (Map.Entry<String, List<DDMFormFieldValue>> entry :
