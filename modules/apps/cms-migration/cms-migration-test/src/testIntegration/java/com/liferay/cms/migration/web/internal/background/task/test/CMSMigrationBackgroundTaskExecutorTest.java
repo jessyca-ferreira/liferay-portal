@@ -1018,6 +1018,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 					Assert.assertEquals(
 						fileEntries[i].getTitle(), fileEntry.getTitle());
 				}
+
+				Assert.assertEquals(content, _render(ddmTemplate, objectEntry));
 			});
 	}
 
