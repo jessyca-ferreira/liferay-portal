@@ -226,6 +226,24 @@ public class ObjectDefinitionMigrator {
 				_getOrAddRepeatableGroupObjectRelationship(
 					cmsMigrationContext, ddmFormField, objectDefinition,
 					repeatableGroupObjectDefinition));
+
+			ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+				objectDefinition.getObjectDefinitionId(),
+				CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
+
+			if (objectField == null) {
+				continue;
+			}
+
+			cmsMigrationContext.getCMSMigrationReport(
+			).addWarning(
+				StringBundler.concat(
+					"Migrated the repeatable field ",
+					ddmFormField.getFieldReference(), " of the structure ",
+					ddmStructure.getStructureKey(),
+					" as a repeatable group and kept the JSON field ",
+					objectField.getName(), " that a previous migration added")
+			);
 		}
 
 		cmsMigrationContext.addDDMStructure(ddmStructure);
