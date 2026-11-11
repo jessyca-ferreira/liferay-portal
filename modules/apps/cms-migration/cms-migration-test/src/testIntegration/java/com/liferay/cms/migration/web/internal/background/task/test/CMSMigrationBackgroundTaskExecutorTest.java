@@ -378,6 +378,27 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithDisallowedFileExtension() throws Exception {
+		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
+
+		try (ConfigurationTemporarySwapper configurationTemporarySwapper =
+				new ConfigurationTemporarySwapper(
+					"com.liferay.document.library.configuration." +
+						"DLConfiguration",
+					HashMapDictionaryBuilder.<String, Object>put(
+						"fileExtensions", new String[] {".pdf"}
+					).build())) {
+
+			_assertSuccessful(_execute(_group.getGroupId(), false));
+		}
+
+		FileEntry attachmentFileEntry = _getAttachmentFileEntry(fileEntry);
+
+		Assert.assertEquals(
+			fileEntry.getExtension(), attachmentFileEntry.getExtension());
+	}
+
+	@Test
 	public void testExecuteWithFileEntryDescription() throws Exception {
 		String description = RandomTestUtil.randomString();
 
