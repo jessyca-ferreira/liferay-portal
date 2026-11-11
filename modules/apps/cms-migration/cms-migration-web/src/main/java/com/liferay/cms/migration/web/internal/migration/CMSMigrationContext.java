@@ -7,9 +7,11 @@ package com.liferay.cms.migration.web.internal.migration;
 
 import com.liferay.cms.migration.web.internal.reference.ReferenceScope;
 import com.liferay.depot.model.DepotEntry;
+import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.dynamic.data.mapping.model.DDMStructure;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.petra.function.UnsafeFunction;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
@@ -38,8 +40,8 @@ public class CMSMigrationContext {
 	public CMSMigrationContext(
 		DepotEntry depotEntry, Group depotGroup, boolean migrateBlogsEntries,
 		boolean migrateFileEntries, boolean migrateJournalArticles,
-		CMSMigrationReport cmsMigrationReport, boolean rewritePages,
-		ServiceContext serviceContext, Group sourceGroup,
+		boolean migrateRepeatableFields, CMSMigrationReport cmsMigrationReport,
+		boolean rewritePages, ServiceContext serviceContext, Group sourceGroup,
 		Consumer<String> statusConsumer, long userId) {
 
 		_depotEntry = depotEntry;
@@ -47,6 +49,7 @@ public class CMSMigrationContext {
 		_migrateBlogsEntries = migrateBlogsEntries;
 		_migrateFileEntries = migrateFileEntries;
 		_migrateJournalArticles = migrateJournalArticles;
+		_migrateRepeatableFields = migrateRepeatableFields;
 		_cmsMigrationReport = cmsMigrationReport;
 		_rewritePages = rewritePages;
 		_serviceContext = serviceContext;
@@ -98,6 +101,16 @@ public class CMSMigrationContext {
 		String className, long classPK, ObjectEntry objectEntry) {
 
 		_objectEntries.put(_getKey(className, classPK), objectEntry);
+	}
+
+	public void addRepeatableGroupObjectRelationship(
+		DDMFormField ddmFormField, ObjectRelationship objectRelationship) {
+
+		_repeatableGroupObjectRelationships.put(
+			_getKey(
+				ddmFormField.getName(),
+				objectRelationship.getObjectDefinitionId1()),
+			objectRelationship);
 	}
 
 	/**
@@ -191,6 +204,13 @@ public class CMSMigrationContext {
 		return _fileEntryResolverUnsafeFunction.apply(fileEntry);
 	}
 
+	public ObjectRelationship getRepeatableGroupObjectRelationship(
+		DDMFormField ddmFormField, long objectDefinitionId) {
+
+		return _repeatableGroupObjectRelationships.get(
+			_getKey(ddmFormField.getName(), objectDefinitionId));
+	}
+
 	/**
 	 * Returns the ID of the group whose references are being rewritten. It is
 	 * the source group, unless the source group is the Global site, whose
@@ -231,6 +251,10 @@ public class CMSMigrationContext {
 
 	public boolean isMigrateJournalArticles() {
 		return _migrateJournalArticles;
+	}
+
+	public boolean isMigrateRepeatableFields() {
+		return _migrateRepeatableFields;
 	}
 
 	public boolean isRewritePages() {
@@ -279,10 +303,13 @@ public class CMSMigrationContext {
 	private final boolean _migrateBlogsEntries;
 	private final boolean _migrateFileEntries;
 	private final boolean _migrateJournalArticles;
+	private final boolean _migrateRepeatableFields;
 	private final Map<String, ObjectDefinition> _objectDefinitions =
 		new HashMap<>();
 	private final Map<String, ObjectEntry> _objectEntries = new HashMap<>();
 	private final Map<String, Long> _objectEntryFolderIds = new HashMap<>();
+	private final Map<String, ObjectRelationship>
+		_repeatableGroupObjectRelationships = new HashMap<>();
 	private Group _rewriteGroup;
 	private final boolean _rewritePages;
 	private final ServiceContext _serviceContext;

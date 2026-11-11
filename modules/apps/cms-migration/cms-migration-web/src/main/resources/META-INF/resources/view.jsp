@@ -103,6 +103,8 @@
 						<aui:input checked="<%= true %>" label="documents-and-media" name="migrateFileEntries" type="checkbox" />
 
 						<aui:input checked="<%= true %>" helpMessage="cms-migration-rewrite-pages-help" label="cms-migration-rewrite-pages" name="rewritePages" type="checkbox" />
+
+						<aui:input helpMessage="cms-migration-repeatable-fields-help" label="cms-migration-repeatable-fields" name="migrateRepeatableFields" type="checkbox" />
 					</clay:sheet-section>
 
 					<clay:sheet-footer>
