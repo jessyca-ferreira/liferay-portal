@@ -8,6 +8,7 @@ package com.liferay.cms.migration.web.internal.migration.content;
 import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.cms.migration.web.internal.migration.entry.AttachmentAlternativeTextWriter;
+import com.liferay.cms.migration.web.internal.migration.entry.AttachmentCopier;
 import com.liferay.cms.migration.web.internal.migration.entry.DDMFormValuesConverter;
 import com.liferay.cms.migration.web.internal.migration.entry.ObjectEntryWriter;
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
@@ -28,7 +29,6 @@ import com.liferay.dynamic.data.mapping.storage.DDMFormValues;
 import com.liferay.dynamic.data.mapping.storage.DDMStorageEngineManager;
 import com.liferay.friendly.url.model.FriendlyURLEntry;
 import com.liferay.friendly.url.service.FriendlyURLEntryLocalService;
-import com.liferay.object.field.attachment.AttachmentManager;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.object.model.ObjectField;
@@ -66,7 +66,7 @@ public class FileEntryMigrator {
 
 	public FileEntryMigrator(
 		AttachmentAlternativeTextWriter attachmentAlternativeTextWriter,
-		AttachmentManager attachmentManager,
+		AttachmentCopier attachmentCopier,
 		DDMFormValuesConverter ddmFormValuesConverter,
 		DDMStorageEngineManager ddmStorageEngineManager,
 		DDMStructureLocalService ddmStructureLocalService,
@@ -81,7 +81,7 @@ public class FileEntryMigrator {
 		ObjectFieldLocalService objectFieldLocalService, Portal portal) {
 
 		_attachmentAlternativeTextWriter = attachmentAlternativeTextWriter;
-		_attachmentManager = attachmentManager;
+		_attachmentCopier = attachmentCopier;
 		_ddmFormValuesConverter = ddmFormValuesConverter;
 		_ddmStorageEngineManager = ddmStorageEngineManager;
 		_ddmStructureLocalService = ddmStructureLocalService;
@@ -158,15 +158,13 @@ public class FileEntryMigrator {
 		FileEntry attachmentFileEntry;
 
 		try (InputStream inputStream = fileVersion.getContentStream(false)) {
-			attachmentFileEntry = _attachmentManager.getOrAddFileEntry(
-				cmsMigrationContext.getCompanyId(),
+			attachmentFileEntry = _attachmentCopier.getOrAddFileEntry(
+				cmsMigrationContext,
 				CMSMigrationConstants.
 					EXTERNAL_REFERENCE_CODE_PREFIX_FILE_ENTRY + "FILE_" +
 						fileEntry.getFileEntryId(),
 				FileUtil.getBytes(inputStream), fileEntry.getFileName(),
-				cmsMigrationContext.getDepotGroupId(),
-				objectField.getObjectFieldId(),
-				cmsMigrationContext.getServiceContext());
+				objectField.getObjectFieldId());
 		}
 		catch (PortalException portalException) {
 			throw portalException;
@@ -405,7 +403,7 @@ public class FileEntryMigrator {
 
 	private final AttachmentAlternativeTextWriter
 		_attachmentAlternativeTextWriter;
-	private final AttachmentManager _attachmentManager;
+	private final AttachmentCopier _attachmentCopier;
 	private final DDMFormValuesConverter _ddmFormValuesConverter;
 	private final DDMStorageEngineManager _ddmStorageEngineManager;
 	private final DDMStructureLocalService _ddmStructureLocalService;

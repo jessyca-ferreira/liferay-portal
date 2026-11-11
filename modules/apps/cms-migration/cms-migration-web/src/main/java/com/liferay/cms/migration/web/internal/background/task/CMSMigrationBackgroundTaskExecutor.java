@@ -313,7 +313,7 @@ public class CMSMigrationBackgroundTaskExecutor
 				_jsonFactory, objectDefinitionMigrator);
 
 		FileEntryMigrator fileEntryMigrator = new FileEntryMigrator(
-			attachmentAlternativeTextWriter, _attachmentManager,
+			attachmentAlternativeTextWriter, attachmentCopier,
 			ddmFormValuesConverter, _ddmStorageEngineManager,
 			_ddmStructureLocalService, _dlAppLocalService,
 			_dlFileEntryLocalService, _dlFileEntryMetadataLocalService,

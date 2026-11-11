@@ -11,16 +11,19 @@ import com.liferay.object.field.attachment.AttachmentManager;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectField;
 import com.liferay.object.service.ObjectFieldLocalService;
+import com.liferay.petra.lang.SafeCloseable;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.portal.kernel.model.Image;
 import com.liferay.portal.kernel.repository.model.FileEntry;
+import com.liferay.portal.kernel.security.auth.CompanyThreadLocal;
 import com.liferay.portal.kernel.service.ImageLocalService;
 import com.liferay.portal.kernel.util.FileUtil;
 
 import java.io.InputStream;
 
 /**
- * Copies classic images into attachment fields of migrated object entries.
+ * Copies classic images and files into attachment fields of migrated object
+ * entries.
  *
  * @author Lino Alves
  */
@@ -98,6 +101,27 @@ public class AttachmentCopier {
 		}
 	}
 
+	public FileEntry getOrAddFileEntry(
+			CMSMigrationContext cmsMigrationContext,
+			String externalReferenceCode, byte[] bytes, String fileName,
+			long objectFieldId)
+		throws Exception {
+
+		// Copying a file that was valid when it was uploaded must not fail its
+		// file extension and MIME type validations, so mark the thread as
+		// initializing a portal instance, the only state that skips them
+
+		try (SafeCloseable safeCloseable =
+				CompanyThreadLocal.
+					setInitializingPortalInstanceWithSafeCloseable(true)) {
+
+			return _attachmentManager.getOrAddFileEntry(
+				cmsMigrationContext.getCompanyId(), externalReferenceCode,
+				bytes, fileName, cmsMigrationContext.getDepotGroupId(),
+				objectFieldId, cmsMigrationContext.getServiceContext());
+		}
+	}
+
 	private long _copy(
 			CMSMigrationContext cmsMigrationContext,
 			ObjectDefinition objectDefinition, String objectFieldName,
@@ -107,11 +131,9 @@ public class AttachmentCopier {
 		ObjectField objectField = _objectFieldLocalService.getObjectField(
 			objectDefinition.getObjectDefinitionId(), objectFieldName);
 
-		FileEntry fileEntry = _attachmentManager.getOrAddFileEntry(
-			cmsMigrationContext.getCompanyId(), externalReferenceCode, bytes,
-			fileName, cmsMigrationContext.getDepotGroupId(),
-			objectField.getObjectFieldId(),
-			cmsMigrationContext.getServiceContext());
+		FileEntry fileEntry = getOrAddFileEntry(
+			cmsMigrationContext, externalReferenceCode, bytes, fileName,
+			objectField.getObjectFieldId());
 
 		return fileEntry.getFileEntryId();
 	}
