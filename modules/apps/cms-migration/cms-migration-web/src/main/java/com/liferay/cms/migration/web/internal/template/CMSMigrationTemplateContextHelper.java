@@ -24,11 +24,15 @@ import com.liferay.journal.util.JournalContent;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectEntryService;
+import com.liferay.object.service.ObjectRelationshipLocalService;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
+import com.liferay.portal.kernel.dao.orm.QueryUtil;
+import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.json.JSONArray;
 import com.liferay.portal.kernel.json.JSONFactoryUtil;
 import com.liferay.portal.kernel.json.JSONObject;
@@ -71,6 +75,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -104,6 +109,7 @@ public class CMSMigrationTemplateContextHelper {
 		ObjectDefinitionLocalService objectDefinitionLocalService,
 		ObjectEntryLocalService objectEntryLocalService,
 		ObjectEntryService objectEntryService,
+		ObjectRelationshipLocalService objectRelationshipLocalService,
 		ReadingTimeEntryLocalService readingTimeEntryLocalService,
 		ReadingTimeMessageProvider readingTimeMessageProvider,
 		UserLocalService userLocalService) {
@@ -123,6 +129,7 @@ public class CMSMigrationTemplateContextHelper {
 		_objectDefinitionLocalService = objectDefinitionLocalService;
 		_objectEntryLocalService = objectEntryLocalService;
 		_objectEntryService = objectEntryService;
+		_objectRelationshipLocalService = objectRelationshipLocalService;
 		_readingTimeEntryLocalService = readingTimeEntryLocalService;
 		_readingTimeMessageProvider = readingTimeMessageProvider;
 		_userLocalService = userLocalService;
@@ -263,7 +270,8 @@ public class CMSMigrationTemplateContextHelper {
 			}
 
 			templateNodes.add(
-				_getTemplateNode(ddmFormField, locale, themeDisplay, values));
+				_getTemplateNode(
+					ddmFormField, locale, objectEntry, themeDisplay, values));
 		}
 
 		templateNodes.addAll(
@@ -482,6 +490,12 @@ public class CMSMigrationTemplateContextHelper {
 		return key;
 	}
 
+	private int _getRepeatableGroupItemIndex(String externalReferenceCode) {
+		return GetterUtil.getInteger(
+			StringUtil.extractLast(externalReferenceCode, StringPool.UNDERLINE),
+			Integer.MAX_VALUE);
+	}
+
 	private String _getSmallImageURL(Map<String, Serializable> values) {
 		String smallImageURL = _getFileEntryURL(
 			GetterUtil.getLong(
@@ -498,8 +512,17 @@ public class CMSMigrationTemplateContextHelper {
 	}
 
 	private TemplateNode _getTemplateNode(
-		DDMFormField ddmFormField, Locale locale, ThemeDisplay themeDisplay,
-		Map<String, Serializable> values) {
+		DDMFormField ddmFormField, Locale locale, ObjectEntry objectEntry,
+		ThemeDisplay themeDisplay, Map<String, Serializable> values) {
+
+		if (ddmFormField.isRepeatable() && (objectEntry != null)) {
+			TemplateNode templateNode = _getTemplateNodeFromRepeatableGroup(
+				ddmFormField, locale, objectEntry, themeDisplay, values);
+
+			if (templateNode != null) {
+				return templateNode;
+			}
+		}
 
 		if (CMSMigrationDDMFormFieldUtil.isJSONField(ddmFormField)) {
 			return _getTemplateNodeFromJSON(
@@ -541,7 +564,8 @@ public class CMSMigrationTemplateContextHelper {
 
 			templateNode.appendChild(
 				_getTemplateNode(
-					nestedDDMFormField, locale, themeDisplay, values));
+					nestedDDMFormField, locale, objectEntry, themeDisplay,
+					values));
 		}
 
 		templateNode.appendSibling(templateNode);
@@ -806,6 +830,87 @@ public class CMSMigrationTemplateContextHelper {
 		}
 
 		return templateNode;
+	}
+
+	private TemplateNode _getTemplateNodeFromRepeatableGroup(
+		DDMFormField ddmFormField, Locale locale, ObjectEntry objectEntry,
+		ThemeDisplay themeDisplay, Map<String, Serializable> values) {
+
+		if (Validator.isNotNull(
+				values.get(
+					CMSMigrationDDMFormFieldUtil.getObjectFieldName(
+						ddmFormField)))) {
+
+			return null;
+		}
+
+		ObjectDefinition objectDefinition = objectEntry.getObjectDefinition();
+
+		ObjectRelationship objectRelationship =
+			_objectRelationshipLocalService.
+				fetchObjectRelationshipByExternalReferenceCode(
+					CMSMigrationDDMFormFieldUtil.
+						getRepeatableGroupExternalReferenceCode(
+							ddmFormField,
+							objectDefinition.getExternalReferenceCode()),
+					objectDefinition.getCompanyId(),
+					objectDefinition.getObjectDefinitionId());
+
+		if (objectRelationship == null) {
+			return null;
+		}
+
+		List<ObjectEntry> itemObjectEntries = new ArrayList<>();
+
+		try {
+			itemObjectEntries.addAll(
+				_objectEntryLocalService.getOneToManyObjectEntries(
+					objectEntry.getGroupId(),
+					objectRelationship.getObjectRelationshipId(), null, true,
+					objectEntry.getObjectEntryId(), true, null,
+					QueryUtil.ALL_POS, QueryUtil.ALL_POS, null));
+		}
+		catch (PortalException portalException) {
+			if (_log.isDebugEnabled()) {
+				_log.debug(portalException);
+			}
+		}
+
+		itemObjectEntries.sort(
+			Comparator.comparingInt(
+				itemObjectEntry -> _getRepeatableGroupItemIndex(
+					itemObjectEntry.getExternalReferenceCode())));
+
+		DDMFormField itemDDMFormField =
+			CMSMigrationDDMFormFieldUtil.getItemDDMFormField(ddmFormField);
+
+		if (itemObjectEntries.isEmpty()) {
+			return _getTemplateNode(
+				itemDDMFormField, locale, null, themeDisplay, new HashMap<>());
+		}
+
+		TemplateNode prototypeTemplateNode = null;
+
+		for (ObjectEntry itemObjectEntry : itemObjectEntries) {
+			TemplateNode templateNode = _getTemplateNode(
+				itemDDMFormField, locale, itemObjectEntry, themeDisplay,
+				itemObjectEntry.getValues());
+
+			if (prototypeTemplateNode == null) {
+				prototypeTemplateNode = templateNode;
+
+				continue;
+			}
+
+			List<TemplateNode> siblingTemplateNodes =
+				templateNode.getSiblings();
+
+			siblingTemplateNodes.clear();
+
+			prototypeTemplateNode.appendSibling(templateNode);
+		}
+
+		return prototypeTemplateNode;
 	}
 
 	private Map<String, String> _getTokens(
@@ -1243,6 +1348,8 @@ public class CMSMigrationTemplateContextHelper {
 	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
 	private final ObjectEntryLocalService _objectEntryLocalService;
 	private final ObjectEntryService _objectEntryService;
+	private final ObjectRelationshipLocalService
+		_objectRelationshipLocalService;
 	private final ReadingTimeEntryLocalService _readingTimeEntryLocalService;
 	private final ReadingTimeMessageProvider _readingTimeMessageProvider;
 	private final UserLocalService _userLocalService;

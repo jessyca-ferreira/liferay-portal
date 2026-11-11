@@ -18,6 +18,7 @@ import com.liferay.journal.util.JournalContent;
 import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectEntryService;
+import com.liferay.object.service.ObjectRelationshipLocalService;
 import com.liferay.portal.kernel.language.Language;
 import com.liferay.portal.kernel.service.ClassNameLocalService;
 import com.liferay.portal.kernel.service.GroupLocalService;
@@ -65,8 +66,8 @@ public class CMSMigrationTemplateContextContributor
 				_groupLocalService, httpServletRequest, _journalContent,
 				_language, _objectDefinitionLocalService,
 				_objectEntryLocalService, _objectEntryService,
-				_readingTimeEntryLocalService, _readingTimeMessageProvider,
-				_userLocalService));
+				_objectRelationshipLocalService, _readingTimeEntryLocalService,
+				_readingTimeMessageProvider, _userLocalService));
 	}
 
 	private DDMForm _getDDMForm(String definition) {
@@ -126,6 +127,9 @@ public class CMSMigrationTemplateContextContributor
 
 	@Reference
 	private ObjectEntryService _objectEntryService;
+
+	@Reference
+	private ObjectRelationshipLocalService _objectRelationshipLocalService;
 
 	@Reference
 	private ReadingTimeEntryLocalService _readingTimeEntryLocalService;
