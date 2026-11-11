@@ -988,7 +988,21 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		_withNewDepotEntry(
 			() -> {
-				_assertSuccessful(_execute(_group.getGroupId(), true, false));
+				BackgroundTaskResult backgroundTaskResult = _execute(
+					_group.getGroupId(), true, false);
+
+				_assertSuccessful(backgroundTaskResult);
+
+				String warningsJSON = _getWarningsJSON(backgroundTaskResult);
+
+				Assert.assertTrue(
+					warningsJSON,
+					warningsJSON.contains(
+						StringBundler.concat(
+							"Migrated the repeatable field fieldsetFieldSet ",
+							"of the structure ", ddmStructure.getStructureKey(),
+							" as a repeatable group and kept the JSON field ",
+							"fieldsetFieldSet")));
 
 				ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
 
