@@ -31,6 +31,7 @@ import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.object.model.ObjectField;
 import com.liferay.object.service.ObjectFieldLocalService;
+import com.liferay.petra.lang.SafeCloseable;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
@@ -38,6 +39,7 @@ import com.liferay.portal.kernel.log.Log;
 import com.liferay.portal.kernel.log.LogFactoryUtil;
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.repository.model.FileVersion;
+import com.liferay.portal.kernel.security.auth.CompanyThreadLocal;
 import com.liferay.portal.kernel.util.ContentTypes;
 import com.liferay.portal.kernel.util.FileUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
@@ -155,7 +157,11 @@ public class FileEntryMigrator {
 
 		FileEntry attachmentFileEntry;
 
-		try (InputStream inputStream = fileVersion.getContentStream(false)) {
+		try (InputStream inputStream = fileVersion.getContentStream(false);
+			SafeCloseable safeCloseable =
+				CompanyThreadLocal.
+					setInitializingPortalInstanceWithSafeCloseable(true)) {
+
 			attachmentFileEntry = _attachmentManager.getOrAddFileEntry(
 				cmsMigrationContext.getCompanyId(),
 				CMSMigrationConstants.
