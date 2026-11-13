@@ -781,17 +781,18 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			"accordion", "accordion", DDMFormFieldTypeConstants.TEXT, "string",
 			false, true, false);
 
-		DDMFormField descriptionDDMFormField =
+		DDMFormField accordionDescriptionDDMFormField =
 			DDMFormTestUtil.createDDMFormField(
-				"description", "description", DDMFormFieldTypeConstants.TEXT,
-				"string", false, true, false);
+				"accordionDescription", "accordionDescription",
+				DDMFormFieldTypeConstants.TEXT, "string", false, true, false);
 
-		descriptionDDMFormField.addNestedDDMFormField(
+		accordionDescriptionDDMFormField.addNestedDDMFormField(
 			DDMFormTestUtil.createDDMFormField(
 				"url", "url", DDMFormFieldTypeConstants.TEXT, "string", false,
 				false, false));
 
-		accordionDDMFormField.addNestedDDMFormField(descriptionDDMFormField);
+		accordionDDMFormField.addNestedDDMFormField(
+			accordionDescriptionDDMFormField);
 
 		ddmForm.addDDMFormField(accordionDDMFormField);
 
@@ -806,17 +807,18 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			StringBundler.concat(
 				"<#list accordionFieldSet.getSiblings() as accordion>[",
 				"${accordion.getChild(\"accordion\").getData()}<#list ",
-				"accordion.getChild(\"descriptionFieldSet\").getSiblings() as ",
-				"description>(",
-				"${description.getChild(\"description\").getData()}|${",
-				"description.getChild(\"descriptionFieldSetFieldSet\").",
-				"getChild(\"url\").getData()})</#list>]</#list>"),
+				"accordion.getChild(\"accordionDescriptionFieldSet\").",
+				"getSiblings() as accordionDescription>(",
+				"${accordionDescription.getChild(\"accordionDescription\").",
+				"getData()}|${accordionDescription.getChild(",
+				"\"accordionDescriptionFieldSetFieldSet\").getChild(\"url\").",
+				"getData()})</#list>]</#list>"),
 			LocaleUtil.US);
 
 		String[] accordions = {
 			RandomTestUtil.randomString(), RandomTestUtil.randomString()
 		};
-		String[][] descriptions = {
+		String[][] accordionDescriptions = {
 			{RandomTestUtil.randomString(), RandomTestUtil.randomString()},
 			{RandomTestUtil.randomString()}
 		};
@@ -836,18 +838,18 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			expectedContentSB.append("[");
 			expectedContentSB.append(accordions[i]);
 
-			String[] descriptionDynamicElements =
-				new String[descriptions[i].length];
+			String[] accordionDescriptionDynamicElements =
+				new String[accordionDescriptions[i].length];
 
-			for (int j = 0; j < descriptions[i].length; j++) {
-				descriptionDynamicElements[j] = _getDynamicElement(
-					descriptions[i][j], "description",
+			for (int j = 0; j < accordionDescriptions[i].length; j++) {
+				accordionDescriptionDynamicElements[j] = _getDynamicElement(
+					accordionDescriptions[i][j], "accordionDescription",
 					DDMFormFieldTypeConstants.TEXT,
 					_getDynamicElement(
 						urls[i][j], "url", DDMFormFieldTypeConstants.TEXT));
 
 				expectedContentSB.append("(");
-				expectedContentSB.append(descriptions[i][j]);
+				expectedContentSB.append(accordionDescriptions[i][j]);
 				expectedContentSB.append("|");
 				expectedContentSB.append(urls[i][j]);
 				expectedContentSB.append(")");
@@ -858,7 +860,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			sb.append(
 				_getDynamicElement(
 					accordions[i], "accordion", DDMFormFieldTypeConstants.TEXT,
-					descriptionDynamicElements));
+					accordionDescriptionDynamicElements));
 		}
 
 		sb.append("</root>");
@@ -888,6 +890,27 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 				ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
 
+				List<ObjectRelationship> objectRelationships =
+					_objectRelationshipLocalService.getObjectRelationships(
+						objectEntry.getObjectDefinitionId());
+
+				ObjectRelationship objectRelationship =
+					objectRelationships.get(0);
+
+				List<ObjectRelationship> nestedObjectRelationships =
+					_objectRelationshipLocalService.getObjectRelationships(
+						objectRelationship.getObjectDefinitionId2());
+
+				ObjectRelationship nestedObjectRelationship =
+					nestedObjectRelationships.get(0);
+
+				String externalReferenceCode =
+					nestedObjectRelationship.getExternalReferenceCode();
+
+				Assert.assertTrue(
+					externalReferenceCode,
+					externalReferenceCode.length() <= 75);
+
 				List<ObjectEntry> accordionObjectEntries =
 					_getItemObjectEntries(objectEntry);
 
@@ -906,28 +929,30 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 						accordions[i],
 						GetterUtil.getString(values.get("accordion")));
 
-					List<ObjectEntry> descriptionObjectEntries =
+					List<ObjectEntry> accordionDescriptionObjectEntries =
 						_getItemObjectEntries(accordionObjectEntry);
 
 					Assert.assertEquals(
-						descriptionObjectEntries.toString(),
-						descriptions[i].length,
-						descriptionObjectEntries.size());
+						accordionDescriptionObjectEntries.toString(),
+						accordionDescriptions[i].length,
+						accordionDescriptionObjectEntries.size());
 
-					for (int j = 0; j < descriptions[i].length; j++) {
-						ObjectEntry descriptionObjectEntry =
-							descriptionObjectEntries.get(j);
+					for (int j = 0; j < accordionDescriptions[i].length; j++) {
+						ObjectEntry accordionDescriptionObjectEntry =
+							accordionDescriptionObjectEntries.get(j);
 
-						Map<String, Serializable> descriptionValues =
-							descriptionObjectEntry.getValues();
+						Map<String, Serializable> accordionDescriptionValues =
+							accordionDescriptionObjectEntry.getValues();
 
 						Assert.assertEquals(
-							descriptions[i][j],
+							accordionDescriptions[i][j],
 							GetterUtil.getString(
-								descriptionValues.get("description")));
+								accordionDescriptionValues.get(
+									"accordionDescription")));
 						Assert.assertEquals(
 							urls[i][j],
-							GetterUtil.getString(descriptionValues.get("url")));
+							GetterUtil.getString(
+								accordionDescriptionValues.get("url")));
 					}
 				}
 
