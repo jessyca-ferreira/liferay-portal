@@ -13,6 +13,7 @@ import com.liferay.object.tree.constants.TreeConstants;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.util.ArrayUtil;
+import com.liferay.portal.kernel.util.DigesterUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.ListUtil;
 import com.liferay.portal.kernel.util.SetUtil;
@@ -215,9 +216,27 @@ public class CMSMigrationDDMFormFieldUtil {
 		DDMFormField ddmFormField,
 		String objectDefinitionExternalReferenceCode) {
 
-		return StringBundler.concat(
+		String externalReferenceCode = StringBundler.concat(
 			objectDefinitionExternalReferenceCode, StringPool.UNDERLINE,
 			getObjectFieldName(ddmFormField));
+
+		if (externalReferenceCode.length() <=
+				_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH) {
+
+			return externalReferenceCode;
+		}
+
+		String hash = DigesterUtil.digestHex(
+			DigesterUtil.SHA_256, externalReferenceCode);
+
+		hash = hash.substring(0, 12);
+
+		return StringBundler.concat(
+			externalReferenceCode.substring(
+				0,
+				_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH -
+					hash.length() - 1),
+			StringPool.UNDERLINE, hash);
 	}
 
 	public static String getRepeatableGroupItemExternalReferenceCode(
@@ -402,6 +421,9 @@ public class CMSMigrationDDMFormFieldUtil {
 	private static final String[] _IGNORED_TYPES = {
 		DDMFormFieldTypeConstants.PARAGRAPH, DDMFormFieldTypeConstants.SEPARATOR
 	};
+
+	private static final int
+		_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH = 75;
 
 	private static final Set<String> _reservedNames = SetUtil.fromArray(
 		"actions", "companyid", "createdate", "creator", "currentdate",
