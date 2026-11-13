@@ -61,6 +61,7 @@ import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.object.service.ObjectFolderLocalService;
 import com.liferay.object.service.ObjectRelationshipLocalService;
+import com.liferay.object.tree.constants.TreeConstants;
 import com.liferay.petra.function.UnsafeRunnable;
 import com.liferay.petra.io.unsync.UnsyncStringWriter;
 import com.liferay.petra.string.StringBundler;
@@ -210,26 +211,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 						"CMS_MIGRATION_DDM_STRUCTURE_" + ddmStructureId,
 						_group.getCompanyId());
 
-			if (objectDefinition == null) {
-				continue;
-			}
-
-			List<ObjectRelationship> objectRelationships =
-				_objectRelationshipLocalService.getObjectRelationships(
-					objectDefinition.getObjectDefinitionId());
-
-			_objectDefinitionLocalService.deleteObjectDefinition(
-				objectDefinition);
-
-			for (ObjectRelationship objectRelationship : objectRelationships) {
-				ObjectDefinition repeatableGroupObjectDefinition =
-					_objectDefinitionLocalService.fetchObjectDefinition(
-						objectRelationship.getObjectDefinitionId2());
-
-				if (repeatableGroupObjectDefinition != null) {
-					_objectDefinitionLocalService.deleteObjectDefinition(
-						repeatableGroupObjectDefinition);
-				}
+			if (objectDefinition != null) {
+				_deleteObjectDefinition(objectDefinition);
 			}
 		}
 
@@ -696,6 +679,263 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRepeatableDDMFormFieldNestedBeyondMaximumDepth()
+		throws Exception {
+
+		DDMFormField parentDDMFormField = null;
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		for (int i = 1; i <= (TreeConstants.MAX_HEIGHT + 1); i++) {
+			DDMFormField ddmFormField = DDMFormTestUtil.createDDMFormField(
+				"level" + i, "level" + i, DDMFormFieldTypeConstants.TEXT,
+				"string", false, true, false);
+
+			if (parentDDMFormField == null) {
+				ddmForm.addDDMFormField(ddmFormField);
+			}
+			else {
+				parentDDMFormField.addNestedDDMFormField(ddmFormField);
+			}
+
+			parentDDMFormField = ddmFormField;
+		}
+
+		String leafName = StringUtil.randomId();
+
+		parentDDMFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				leafName, leafName, DDMFormFieldTypeConstants.TEXT, "string",
+				false, false, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		String dynamicElement = _getDynamicElement(
+			RandomTestUtil.randomString(), leafName,
+			DDMFormFieldTypeConstants.TEXT);
+
+		for (int i = TreeConstants.MAX_HEIGHT + 1; i > 0; i--) {
+			dynamicElement = _getDynamicElement(
+				RandomTestUtil.randomString(), "level" + i,
+				DDMFormFieldTypeConstants.TEXT, dynamicElement);
+		}
+
+		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+			_group.getGroupId(),
+			StringBundler.concat(
+				"<root available-locales=\"en_US\" default-locale=\"en_US\">",
+				dynamicElement, "</root>"),
+			ddmStructure.getStructureKey(), null);
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), true, false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String warningsJSON = _getWarningsJSON(backgroundTaskResult);
+
+		Assert.assertTrue(
+			warningsJSON,
+			warningsJSON.contains(
+				StringBundler.concat(
+					"Migrated the repeatable field level",
+					TreeConstants.MAX_HEIGHT + 1, "FieldSet of the structure ",
+					ddmStructure.getStructureKey(),
+					" as JSON because repeatable groups cannot be nested more ",
+					"than ", TreeConstants.MAX_HEIGHT, " levels deep")));
+
+		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+
+		for (int i = 1; i <= TreeConstants.MAX_HEIGHT; i++) {
+			List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+				objectEntry);
+
+			Assert.assertEquals(
+				itemObjectEntries.toString(), 1, itemObjectEntries.size());
+
+			objectEntry = itemObjectEntries.get(0);
+		}
+
+		ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+			objectEntry.getObjectDefinitionId(),
+			"level" + (TreeConstants.MAX_HEIGHT + 1) + "FieldSet");
+
+		Assert.assertEquals(
+			ObjectFieldConstants.BUSINESS_TYPE_RICH_TEXT,
+			objectField.getBusinessType());
+
+		Assert.assertEquals(
+			Collections.emptyList(),
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId()));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDDMFormFieldWithNestedRepeatableDDMFormFieldAsRepeatableGroups()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		DDMFormField accordionDDMFormField = DDMFormTestUtil.createDDMFormField(
+			"accordion", "accordion", DDMFormFieldTypeConstants.TEXT, "string",
+			false, true, false);
+
+		DDMFormField descriptionDDMFormField =
+			DDMFormTestUtil.createDDMFormField(
+				"description", "description", DDMFormFieldTypeConstants.TEXT,
+				"string", false, true, false);
+
+		descriptionDDMFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"url", "url", DDMFormFieldTypeConstants.TEXT, "string", false,
+				false, false));
+
+		accordionDDMFormField.addNestedDDMFormField(descriptionDDMFormField);
+
+		ddmForm.addDDMFormField(accordionDDMFormField);
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
+			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
+			ddmStructure.getStructureId(),
+			_portal.getClassNameId(JournalArticle.class),
+			TemplateConstants.LANG_TYPE_FTL,
+			StringBundler.concat(
+				"<#list accordionFieldSet.getSiblings() as accordion>[",
+				"${accordion.getChild(\"accordion\").getData()}<#list ",
+				"accordion.getChild(\"descriptionFieldSet\").getSiblings() as ",
+				"description>(",
+				"${description.getChild(\"description\").getData()}|${",
+				"description.getChild(\"descriptionFieldSetFieldSet\").",
+				"getChild(\"url\").getData()})</#list>]</#list>"),
+			LocaleUtil.US);
+
+		String[] accordions = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+		String[][] descriptions = {
+			{RandomTestUtil.randomString(), RandomTestUtil.randomString()},
+			{RandomTestUtil.randomString()}
+		};
+		String[][] urls = {
+			{RandomTestUtil.randomString(), RandomTestUtil.randomString()},
+			{RandomTestUtil.randomString()}
+		};
+
+		StringBundler sb = new StringBundler();
+
+		sb.append("<root available-locales=\"en_US\" ");
+		sb.append("default-locale=\"en_US\">");
+
+		StringBundler expectedContentSB = new StringBundler();
+
+		for (int i = 0; i < accordions.length; i++) {
+			expectedContentSB.append("[");
+			expectedContentSB.append(accordions[i]);
+
+			String[] descriptionDynamicElements =
+				new String[descriptions[i].length];
+
+			for (int j = 0; j < descriptions[i].length; j++) {
+				descriptionDynamicElements[j] = _getDynamicElement(
+					descriptions[i][j], "description",
+					DDMFormFieldTypeConstants.TEXT,
+					_getDynamicElement(
+						urls[i][j], "url", DDMFormFieldTypeConstants.TEXT));
+
+				expectedContentSB.append("(");
+				expectedContentSB.append(descriptions[i][j]);
+				expectedContentSB.append("|");
+				expectedContentSB.append(urls[i][j]);
+				expectedContentSB.append(")");
+			}
+
+			expectedContentSB.append("]");
+
+			sb.append(
+				_getDynamicElement(
+					accordions[i], "accordion", DDMFormFieldTypeConstants.TEXT,
+					descriptionDynamicElements));
+		}
+
+		sb.append("</root>");
+
+		_journalArticle = JournalTestUtil.addArticleWithXMLContent(
+			_group.getGroupId(), sb.toString(), ddmStructure.getStructureKey(),
+			null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		String content = _render(ddmTemplate, _getObjectEntry(_journalArticle));
+
+		Assert.assertTrue(
+			content, content.contains(expectedContentSB.toString()));
+
+		_withNewDepotEntry(
+			() -> {
+				BackgroundTaskResult backgroundTaskResult = _execute(
+					_group.getGroupId(), true, false);
+
+				_assertSuccessful(backgroundTaskResult);
+
+				String warningsJSON = _getWarningsJSON(backgroundTaskResult);
+
+				Assert.assertFalse(
+					warningsJSON, warningsJSON.contains(" as JSON because"));
+
+				ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
+
+				List<ObjectEntry> accordionObjectEntries =
+					_getItemObjectEntries(objectEntry);
+
+				Assert.assertEquals(
+					accordionObjectEntries.toString(), accordions.length,
+					accordionObjectEntries.size());
+
+				for (int i = 0; i < accordions.length; i++) {
+					ObjectEntry accordionObjectEntry =
+						accordionObjectEntries.get(i);
+
+					Map<String, Serializable> values =
+						accordionObjectEntry.getValues();
+
+					Assert.assertEquals(
+						accordions[i],
+						GetterUtil.getString(values.get("accordion")));
+
+					List<ObjectEntry> descriptionObjectEntries =
+						_getItemObjectEntries(accordionObjectEntry);
+
+					Assert.assertEquals(
+						descriptionObjectEntries.toString(),
+						descriptions[i].length,
+						descriptionObjectEntries.size());
+
+					for (int j = 0; j < descriptions[i].length; j++) {
+						ObjectEntry descriptionObjectEntry =
+							descriptionObjectEntries.get(j);
+
+						Map<String, Serializable> descriptionValues =
+							descriptionObjectEntry.getValues();
+
+						Assert.assertEquals(
+							descriptions[i][j],
+							GetterUtil.getString(
+								descriptionValues.get("description")));
+						Assert.assertEquals(
+							urls[i][j],
+							GetterUtil.getString(descriptionValues.get("url")));
+					}
+				}
+
+				Assert.assertEquals(content, _render(ddmTemplate, objectEntry));
+			});
+	}
+
+	@Test
 	public void testExecuteWithRepeatableDocumentLibraryDDMFormFieldAsRepeatableGroup()
 		throws Exception {
 
@@ -1038,7 +1278,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
-	public void testExecuteWithRepeatableFieldsetDDMFormFieldWithNestedRepeatableField()
+	public void testExecuteWithRepeatableFieldsetDDMFormFieldWithUnsupportedDDMFormField()
 		throws Exception {
 
 		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
@@ -1049,8 +1289,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		ddmFormField.addNestedDDMFormField(
 			DDMFormTestUtil.createDDMFormField(
-				"text", "text", DDMFormFieldTypeConstants.TEXT, "string", true,
-				true, false));
+				"color", "color", DDMFormFieldTypeConstants.COLOR, "string",
+				false, false, false));
 
 		ddmForm.addDDMFormField(ddmFormField);
 
@@ -1064,8 +1304,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				_getDynamicElement(
 					null, "fieldset", DDMFormFieldTypeConstants.FIELDSET,
 					_getDynamicElement(
-						RandomTestUtil.randomString(), "text",
-						DDMFormFieldTypeConstants.TEXT)),
+						RandomTestUtil.randomString(), "color",
+						DDMFormFieldTypeConstants.COLOR)),
 				"</root>"),
 			ddmStructure.getStructureKey(), null);
 
@@ -1073,6 +1313,16 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_group.getGroupId(), true, false);
 
 		_assertSuccessful(backgroundTaskResult);
+
+		String warningsJSON = _getWarningsJSON(backgroundTaskResult);
+
+		Assert.assertTrue(
+			warningsJSON,
+			warningsJSON.contains(
+				StringBundler.concat(
+					"Migrated the repeatable field fieldsetFieldSet of the ",
+					"structure ", ddmStructure.getStructureKey(),
+					" as JSON because it contains unsupported field types")));
 
 		ObjectEntry objectEntry = _getObjectEntry(_journalArticle);
 
@@ -1087,14 +1337,6 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			Collections.emptyList(),
 			_objectRelationshipLocalService.getObjectRelationships(
 				objectEntry.getObjectDefinitionId()));
-
-		String warningsJSON = _getWarningsJSON(backgroundTaskResult);
-
-		Assert.assertTrue(
-			warningsJSON,
-			warningsJSON.contains(
-				"Migrated the repeatable field fieldsetFieldSet of the " +
-					"structure " + ddmStructure.getStructureKey()));
 	}
 
 	@Test
@@ -2056,6 +2298,26 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		}
 
 		_depotEntryLocalService.deleteDepotEntry(depotEntry);
+	}
+
+	private void _deleteObjectDefinition(ObjectDefinition objectDefinition)
+		throws Exception {
+
+		List<ObjectRelationship> objectRelationships =
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectDefinition.getObjectDefinitionId());
+
+		_objectDefinitionLocalService.deleteObjectDefinition(objectDefinition);
+
+		for (ObjectRelationship objectRelationship : objectRelationships) {
+			ObjectDefinition repeatableGroupObjectDefinition =
+				_objectDefinitionLocalService.fetchObjectDefinition(
+					objectRelationship.getObjectDefinitionId2());
+
+			if (repeatableGroupObjectDefinition != null) {
+				_deleteObjectDefinition(repeatableGroupObjectDefinition);
+			}
+		}
 	}
 
 	private BackgroundTaskResult _execute(
