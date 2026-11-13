@@ -41,6 +41,7 @@ import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.object.service.ObjectFieldSettingLocalService;
 import com.liferay.object.service.ObjectFolderLocalService;
 import com.liferay.object.service.ObjectRelationshipLocalService;
+import com.liferay.object.tree.constants.TreeConstants;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
@@ -163,38 +164,13 @@ public class ObjectDefinitionMigrator {
 
 		DDMForm ddmForm = ddmStructure.getFullHierarchyDDMForm();
 
-		List<DDMFormField> ddmFormFields = new ArrayList<>();
 		List<DDMFormField> repeatableGroupDDMFormFields = new ArrayList<>();
 
-		for (DDMFormField ddmFormField :
-				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
-					ddmForm.getDDMFormFields())) {
-
-			if (CMSMigrationDDMFormFieldUtil.isRepeatableGroupField(
-					ddmFormField,
-					cmsMigrationContext.isMigrateRepeatableFields())) {
-
-				repeatableGroupDDMFormFields.add(ddmFormField);
-
-				continue;
-			}
-
-			if (cmsMigrationContext.isMigrateRepeatableFields() &&
-				ddmFormField.isRepeatable()) {
-
-				cmsMigrationContext.getCMSMigrationReport(
-				).addWarning(
-					StringBundler.concat(
-						"Migrated the repeatable field ",
-						ddmFormField.getFieldReference(), " of the structure ",
-						ddmStructure.getStructureKey(),
-						" as JSON because it contains nested repeatable ",
-						"fields or unsupported field types")
-				);
-			}
-
-			ddmFormFields.add(ddmFormField);
-		}
+		List<DDMFormField> ddmFormFields = _partitionDDMFormFields(
+			cmsMigrationContext, ddmStructure, 0,
+			CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+				ddmForm.getDDMFormFields()),
+			repeatableGroupDDMFormFields);
 
 		String listTypeKey = String.valueOf(ddmStructure.getStructureId());
 
@@ -215,36 +191,9 @@ public class ObjectDefinitionMigrator {
 				ddmStructure.getStructureId(),
 			objectFields);
 
-		for (DDMFormField ddmFormField : repeatableGroupDDMFormFields) {
-			ObjectDefinition repeatableGroupObjectDefinition =
-				_getOrAddRepeatableGroupObjectDefinition(
-					cmsMigrationContext, ddmFormField, listTypeKey,
-					objectDefinition, ddmStructure.getStructureId());
-
-			cmsMigrationContext.addRepeatableGroupObjectRelationship(
-				ddmFormField,
-				_getOrAddRepeatableGroupObjectRelationship(
-					cmsMigrationContext, ddmFormField, objectDefinition,
-					repeatableGroupObjectDefinition));
-
-			ObjectField objectField = _objectFieldLocalService.fetchObjectField(
-				objectDefinition.getObjectDefinitionId(),
-				CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
-
-			if (objectField == null) {
-				continue;
-			}
-
-			cmsMigrationContext.getCMSMigrationReport(
-			).addWarning(
-				StringBundler.concat(
-					"Migrated the repeatable field ",
-					ddmFormField.getFieldReference(), " of the structure ",
-					ddmStructure.getStructureKey(),
-					" as a repeatable group and kept the JSON field ",
-					objectField.getName(), " that a previous migration added")
-			);
-		}
+		_addRepeatableGroups(
+			cmsMigrationContext, ddmStructure, 0, listTypeKey, objectDefinition,
+			repeatableGroupDDMFormFields);
 
 		cmsMigrationContext.addDDMStructure(ddmStructure);
 		cmsMigrationContext.addObjectDefinition(
@@ -356,6 +305,60 @@ public class ObjectDefinitionMigrator {
 				objectField.getReadOnlyConditionExpression(),
 				objectField.isRequired(), objectField.isState(),
 				objectField.getObjectFieldSettings());
+		}
+	}
+
+	private void _addRepeatableGroups(
+			CMSMigrationContext cmsMigrationContext, DDMStructure ddmStructure,
+			int depth, String listTypeKey, ObjectDefinition objectDefinition,
+			List<DDMFormField> repeatableGroupDDMFormFields)
+		throws PortalException {
+
+		for (DDMFormField ddmFormField : repeatableGroupDDMFormFields) {
+			ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+				objectDefinition.getObjectDefinitionId(),
+				CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
+
+			if (objectField != null) {
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						"Migrated the repeatable field ",
+						ddmFormField.getFieldReference(), " of the structure ",
+						ddmStructure.getStructureKey(),
+						" as a repeatable group and kept the JSON field ",
+						objectField.getName(),
+						" that a previous migration added")
+				);
+			}
+
+			List<DDMFormField> nestedRepeatableGroupDDMFormFields =
+				new ArrayList<>();
+
+			List<DDMFormField> itemDDMFormFields = _partitionDDMFormFields(
+				cmsMigrationContext, ddmStructure, depth + 1,
+				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+					ListUtil.fromArray(
+						CMSMigrationDDMFormFieldUtil.getItemDDMFormField(
+							ddmFormField))),
+				nestedRepeatableGroupDDMFormFields);
+
+			ObjectDefinition repeatableGroupObjectDefinition =
+				_getOrAddRepeatableGroupObjectDefinition(
+					cmsMigrationContext, ddmFormField, itemDDMFormFields,
+					listTypeKey, objectDefinition,
+					ddmStructure.getStructureId());
+
+			cmsMigrationContext.addRepeatableGroupObjectRelationship(
+				ddmFormField,
+				_getOrAddRepeatableGroupObjectRelationship(
+					cmsMigrationContext, ddmFormField, objectDefinition,
+					repeatableGroupObjectDefinition));
+
+			_addRepeatableGroups(
+				cmsMigrationContext, ddmStructure, depth + 1, listTypeKey,
+				repeatableGroupObjectDefinition,
+				nestedRepeatableGroupDDMFormFields);
 		}
 	}
 
@@ -707,8 +710,8 @@ public class ObjectDefinitionMigrator {
 
 	private ObjectDefinition _getOrAddRepeatableGroupObjectDefinition(
 			CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
-			String listTypeKey, ObjectDefinition objectDefinition,
-			long structureId)
+			List<DDMFormField> itemDDMFormFields, String listTypeKey,
+			ObjectDefinition objectDefinition, long structureId)
 		throws PortalException {
 
 		String externalReferenceCode =
@@ -722,12 +725,7 @@ public class ObjectDefinitionMigrator {
 					externalReferenceCode, cmsMigrationContext.getCompanyId());
 
 		List<ObjectField> objectFields = _getDDMFormObjectFields(
-			cmsMigrationContext,
-			CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
-				ListUtil.fromArray(
-					CMSMigrationDDMFormFieldUtil.getItemDDMFormField(
-						ddmFormField))),
-			listTypeKey);
+			cmsMigrationContext, itemDDMFormFields, listTypeKey);
 
 		if (repeatableGroupObjectDefinition == null) {
 			ObjectFolder objectFolder =
@@ -931,6 +929,49 @@ public class ObjectDefinitionMigrator {
 		}
 
 		return uniqueName;
+	}
+
+	private List<DDMFormField> _partitionDDMFormFields(
+		CMSMigrationContext cmsMigrationContext, DDMStructure ddmStructure,
+		int depth, List<DDMFormField> leafDDMFormFields,
+		List<DDMFormField> repeatableGroupDDMFormFields) {
+
+		List<DDMFormField> ddmFormFields = new ArrayList<>();
+
+		for (DDMFormField ddmFormField : leafDDMFormFields) {
+			if (CMSMigrationDDMFormFieldUtil.isRepeatableGroupField(
+					ddmFormField, depth,
+					cmsMigrationContext.isMigrateRepeatableFields())) {
+
+				repeatableGroupDDMFormFields.add(ddmFormField);
+
+				continue;
+			}
+
+			if (cmsMigrationContext.isMigrateRepeatableFields() &&
+				ddmFormField.isRepeatable()) {
+
+				String reason = " because it contains unsupported field types";
+
+				if (depth >= TreeConstants.MAX_HEIGHT) {
+					reason = StringBundler.concat(
+						" because repeatable groups cannot be nested ",
+						"more than ", TreeConstants.MAX_HEIGHT, " levels deep");
+				}
+
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						"Migrated the repeatable field ",
+						ddmFormField.getFieldReference(), " of the structure ",
+						ddmStructure.getStructureKey(), " as JSON", reason)
+				);
+			}
+
+			ddmFormFields.add(ddmFormField);
+		}
+
+		return ddmFormFields;
 	}
 
 	private static final int _NAME_MAX_LENGTH = 41;

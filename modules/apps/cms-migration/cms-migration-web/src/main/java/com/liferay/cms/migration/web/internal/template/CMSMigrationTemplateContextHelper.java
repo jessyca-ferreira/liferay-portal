@@ -496,6 +496,34 @@ public class CMSMigrationTemplateContextHelper {
 			Integer.MAX_VALUE);
 	}
 
+	private ObjectRelationship _getRepeatableGroupObjectRelationship(
+		DDMFormField ddmFormField, ObjectEntry objectEntry) {
+
+		String key =
+			objectEntry.getObjectDefinitionId() + StringPool.POUND +
+				ddmFormField.getName();
+
+		if (_repeatableGroupObjectRelationships.containsKey(key)) {
+			return _repeatableGroupObjectRelationships.get(key);
+		}
+
+		ObjectDefinition objectDefinition = objectEntry.getObjectDefinition();
+
+		ObjectRelationship objectRelationship =
+			_objectRelationshipLocalService.
+				fetchObjectRelationshipByExternalReferenceCode(
+					CMSMigrationDDMFormFieldUtil.
+						getRepeatableGroupExternalReferenceCode(
+							ddmFormField,
+							objectDefinition.getExternalReferenceCode()),
+					objectDefinition.getCompanyId(),
+					objectDefinition.getObjectDefinitionId());
+
+		_repeatableGroupObjectRelationships.put(key, objectRelationship);
+
+		return objectRelationship;
+	}
+
 	private String _getSmallImageURL(Map<String, Serializable> values) {
 		String smallImageURL = _getFileEntryURL(
 			GetterUtil.getLong(
@@ -844,17 +872,8 @@ public class CMSMigrationTemplateContextHelper {
 			return null;
 		}
 
-		ObjectDefinition objectDefinition = objectEntry.getObjectDefinition();
-
 		ObjectRelationship objectRelationship =
-			_objectRelationshipLocalService.
-				fetchObjectRelationshipByExternalReferenceCode(
-					CMSMigrationDDMFormFieldUtil.
-						getRepeatableGroupExternalReferenceCode(
-							ddmFormField,
-							objectDefinition.getExternalReferenceCode()),
-					objectDefinition.getCompanyId(),
-					objectDefinition.getObjectDefinitionId());
+			_getRepeatableGroupObjectRelationship(ddmFormField, objectEntry);
 
 		if (objectRelationship == null) {
 			return null;
@@ -1352,6 +1371,8 @@ public class CMSMigrationTemplateContextHelper {
 		_objectRelationshipLocalService;
 	private final ReadingTimeEntryLocalService _readingTimeEntryLocalService;
 	private final ReadingTimeMessageProvider _readingTimeMessageProvider;
+	private final Map<String, ObjectRelationship>
+		_repeatableGroupObjectRelationships = new HashMap<>();
 	private final UserLocalService _userLocalService;
 
 }

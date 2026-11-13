@@ -9,6 +9,7 @@ import com.liferay.cms.migration.web.internal.constants.CMSMigrationConstants;
 import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTypeConstants;
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.object.tree.constants.TreeConstants;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.util.ArrayUtil;
@@ -283,9 +284,11 @@ public class CMSMigrationDDMFormFieldUtil {
 	}
 
 	public static boolean isRepeatableGroupField(
-		DDMFormField ddmFormField, boolean migrateRepeatableFields) {
+		DDMFormField ddmFormField, int depth, boolean migrateRepeatableFields) {
 
-		if (!migrateRepeatableFields || !ddmFormField.isRepeatable()) {
+		if (!migrateRepeatableFields || !ddmFormField.isRepeatable() ||
+			(depth >= TreeConstants.MAX_HEIGHT)) {
+
 			return false;
 		}
 
@@ -328,7 +331,9 @@ public class CMSMigrationDDMFormFieldUtil {
 			}
 
 			if (nestedDDMFormField.isRepeatable()) {
-				return false;
+				leafFieldFound = true;
+
+				continue;
 			}
 
 			if (Objects.equals(
