@@ -10,6 +10,7 @@ import com.liferay.cms.migration.web.internal.migration.CMSMigrationContext;
 import com.liferay.cms.migration.web.internal.migration.entry.AttachmentCopier;
 import com.liferay.cms.migration.web.internal.migration.entry.DDMFormValuesConverter;
 import com.liferay.cms.migration.web.internal.migration.entry.LocalizedValuesUtil;
+import com.liferay.cms.migration.web.internal.migration.entry.ObjectEntryValues;
 import com.liferay.cms.migration.web.internal.migration.entry.ObjectEntryWriter;
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
 import com.liferay.dynamic.data.mapping.model.DDMFieldAttributeTable;
@@ -127,8 +128,12 @@ public class JournalArticleMigrator {
 				EXTERNAL_REFERENCE_CODE_PREFIX_JOURNAL_ARTICLE +
 					resourcePrimKey;
 
-		Map<String, Serializable> values = _ddmFormValuesConverter.getValues(
-			cmsMigrationContext, _getDDMFormValues(journalArticle));
+		ObjectEntryValues objectEntryValues =
+			_ddmFormValuesConverter.getObjectEntryValues(
+				cmsMigrationContext, _getDDMFormValues(journalArticle),
+				objectDefinition.getObjectDefinitionId());
+
+		Map<String, Serializable> values = objectEntryValues.getValues();
 
 		Map<Locale, String> descriptionMap = new HashMap<>();
 		Map<Locale, String> titleMap = new HashMap<>();

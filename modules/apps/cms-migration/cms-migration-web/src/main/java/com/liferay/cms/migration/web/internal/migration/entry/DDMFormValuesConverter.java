@@ -73,20 +73,31 @@ public class DDMFormValuesConverter {
 		_objectDefinitionMigrator = objectDefinitionMigrator;
 	}
 
+	public ObjectEntryValues getObjectEntryValues(
+		CMSMigrationContext cmsMigrationContext, DDMFormValues ddmFormValues,
+		long objectDefinitionId) {
+
+		ObjectEntryValues objectEntryValues = new ObjectEntryValues();
+
+		if (ddmFormValues == null) {
+			return objectEntryValues;
+		}
+
+		_putObjectEntryValues(
+			cmsMigrationContext, ddmFormValues.getDDMFormFieldValues(),
+			ddmFormValues.getDefaultLocale(), objectDefinitionId,
+			objectEntryValues);
+
+		return objectEntryValues;
+	}
+
 	public Map<String, Serializable> getValues(
 		CMSMigrationContext cmsMigrationContext, DDMFormValues ddmFormValues) {
 
-		Map<String, Serializable> values = new HashMap<>();
+		ObjectEntryValues objectEntryValues = getObjectEntryValues(
+			cmsMigrationContext, ddmFormValues, 0);
 
-		if (ddmFormValues == null) {
-			return values;
-		}
-
-		_putValues(
-			cmsMigrationContext, ddmFormValues.getDDMFormFieldValues(),
-			ddmFormValues.getDefaultLocale(), values);
-
-		return values;
+		return objectEntryValues.getValues();
 	}
 
 	/**
@@ -497,10 +508,12 @@ public class DDMFormValuesConverter {
 		}
 	}
 
-	private void _putValues(
+	private void _putObjectEntryValues(
 		CMSMigrationContext cmsMigrationContext,
 		List<DDMFormFieldValue> ddmFormFieldValues, Locale defaultLocale,
-		Map<String, Serializable> values) {
+		long objectDefinitionId, ObjectEntryValues objectEntryValues) {
+
+		Map<String, Serializable> values = objectEntryValues.getValues();
 
 		Map<String, List<DDMFormFieldValue>> repeatableDDMFormFieldValuesMap =
 			new LinkedHashMap<>();
@@ -535,10 +548,10 @@ public class DDMFormValuesConverter {
 					defaultLocale, values);
 			}
 
-			_putValues(
+			_putObjectEntryValues(
 				cmsMigrationContext,
 				ddmFormFieldValue.getNestedDDMFormFieldValues(), defaultLocale,
-				values);
+				objectDefinitionId, objectEntryValues);
 		}
 
 		for (Map.Entry<String, List<DDMFormFieldValue>> entry :
