@@ -1001,6 +1001,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 								accordionDescriptionValues.get("url")));
 					}
 				}
+
+				Assert.assertEquals(content, _render(ddmTemplate, objectEntry));
 			});
 	}
 
@@ -1340,6 +1342,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 					Assert.assertEquals(
 						fileEntries[i].getFileName(), fileEntry.getFileName());
 				}
+
+				Assert.assertEquals(content, _render(ddmTemplate, objectEntry));
 			});
 	}
 
