@@ -52,14 +52,23 @@ import com.liferay.layout.test.util.ContentLayoutTestUtil;
 import com.liferay.layout.test.util.LayoutTestUtil;
 import com.liferay.list.type.model.ListTypeEntry;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.object.constants.ObjectFolderConstants;
+import com.liferay.object.constants.ObjectRelationshipConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
 import com.liferay.object.model.ObjectEntryFolder;
 import com.liferay.object.model.ObjectField;
+import com.liferay.object.model.ObjectFolder;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectEntryFolderLocalService;
 import com.liferay.object.service.ObjectEntryLocalService;
+import com.liferay.object.service.ObjectEntryService;
 import com.liferay.object.service.ObjectFieldLocalService;
+import com.liferay.object.service.ObjectFolderLocalService;
+import com.liferay.object.service.ObjectRelationshipLocalService;
+import com.liferay.object.tree.constants.TreeConstants;
+import com.liferay.petra.function.UnsafeRunnable;
 import com.liferay.petra.io.unsync.UnsyncStringWriter;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
@@ -71,6 +80,7 @@ import com.liferay.portal.kernel.backgroundtask.BackgroundTaskResult;
 import com.liferay.portal.kernel.backgroundtask.constants.BackgroundTaskConstants;
 import com.liferay.portal.kernel.dao.orm.DynamicQuery;
 import com.liferay.portal.kernel.dao.orm.ProjectionFactoryUtil;
+import com.liferay.portal.kernel.dao.orm.QueryUtil;
 import com.liferay.portal.kernel.dao.orm.RestrictionsFactoryUtil;
 import com.liferay.portal.kernel.json.JSONArray;
 import com.liferay.portal.kernel.json.JSONFactoryUtil;
@@ -89,7 +99,10 @@ import com.liferay.portal.kernel.portletdisplaytemplate.PortletDisplayTemplateMa
 import com.liferay.portal.kernel.repository.model.FileEntry;
 import com.liferay.portal.kernel.repository.model.Folder;
 import com.liferay.portal.kernel.security.permission.ActionKeys;
+import com.liferay.portal.kernel.security.permission.PermissionChecker;
+import com.liferay.portal.kernel.security.permission.PermissionCheckerFactoryUtil;
 import com.liferay.portal.kernel.security.permission.ResourceActionsUtil;
+import com.liferay.portal.kernel.security.permission.resource.ModelResourcePermission;
 import com.liferay.portal.kernel.service.CompanyLocalService;
 import com.liferay.portal.kernel.service.GroupLocalService;
 import com.liferay.portal.kernel.service.LayoutLocalService;
@@ -97,6 +110,7 @@ import com.liferay.portal.kernel.service.PortletPreferencesLocalService;
 import com.liferay.portal.kernel.service.ResourcePermissionLocalService;
 import com.liferay.portal.kernel.service.RoleLocalService;
 import com.liferay.portal.kernel.service.ServiceContext;
+import com.liferay.portal.kernel.service.UserLocalService;
 import com.liferay.portal.kernel.service.permission.PortletPermissionUtil;
 import com.liferay.portal.kernel.template.StringTemplateResource;
 import com.liferay.portal.kernel.template.Template;
@@ -142,14 +156,16 @@ import jakarta.portlet.PortletPreferences;
 
 import java.io.Serializable;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 
 import org.junit.After;
 import org.junit.Assert;
@@ -179,35 +195,26 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	public void setUp() throws Exception {
 		_group = GroupTestUtil.addGroup();
 
-		_depotEntry = _depotEntryLocalService.addDepotEntry(
-			HashMapBuilder.put(
-				LocaleUtil.getDefault(), RandomTestUtil.randomString()
-			).build(),
-			HashMapBuilder.put(
-				LocaleUtil.getDefault(), RandomTestUtil.randomString()
-			).build(),
-			DepotConstants.TYPE_SPACE,
-			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+		_depotEntry = _addDepotEntry();
 
 		_originalObjectDefinitionIds = _getObjectDefinitionIds();
 	}
 
 	@After
 	public void tearDown() throws Exception {
-		for (DepotEntryGroupRel depotEntryGroupRel :
-				_depotEntryGroupRelLocalService.getDepotEntryGroupRels(
-					_depotEntry)) {
-
-			_depotEntryGroupRelLocalService.deleteDepotEntryGroupRel(
-				depotEntryGroupRel);
-		}
-
-		_depotEntryLocalService.deleteDepotEntry(_depotEntry);
+		_deleteDepotEntry(_depotEntry);
 
 		for (long objectDefinitionId : _getObjectDefinitionIds()) {
-			if (!_originalObjectDefinitionIds.contains(objectDefinitionId)) {
-				_objectDefinitionLocalService.deleteObjectDefinition(
+			if (_originalObjectDefinitionIds.contains(objectDefinitionId)) {
+				continue;
+			}
+
+			ObjectDefinition objectDefinition =
+				_objectDefinitionLocalService.fetchObjectDefinition(
 					objectDefinitionId);
+
+			if (objectDefinition != null) {
+				_deleteObjectDefinition(objectDefinition);
 			}
 		}
 	}
@@ -334,42 +341,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
 
-		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
-
-		MockHttpServletRequest mockHttpServletRequest =
-			_getMockHttpServletRequest(
-				LayoutTestUtil.addTypeContentLayout(_group));
-
-		DDMTemplate migratedDDMTemplate =
-			_ddmTemplateLocalService.getDDMTemplateByExternalReferenceCode(
-				"CMS_MIGRATION_DDM_TEMPLATE_" + ddmTemplate.getTemplateId(),
-				_group.getGroupId());
-
-		Template template = TemplateManagerUtil.getTemplate(
-			TemplateConstants.LANG_TYPE_FTL,
-			new StringTemplateResource(
-				migratedDDMTemplate.getTemplateKey(),
-				migratedDDMTemplate.getScript()),
-			false);
-
-		template.prepare(mockHttpServletRequest);
-
-		ThemeDisplay themeDisplay =
-			(ThemeDisplay)mockHttpServletRequest.getAttribute(
-				WebKeys.THEME_DISPLAY);
-
-		template.put(
-			"objectEntryId",
-			new TemplateNode(
-				themeDisplay, "objectEntryId",
-				String.valueOf(objectEntry.getObjectEntryId()),
-				StringPool.BLANK, new HashMap<>()));
-
-		UnsyncStringWriter unsyncStringWriter = new UnsyncStringWriter();
-
-		template.processTemplate(unsyncStringWriter);
-
-		String content = unsyncStringWriter.toString();
+		String content = _render(ddmTemplate, _getObjectEntry(journalArticle));
 
 		Assert.assertTrue(content, content.contains(">true</div>"));
 	}
@@ -812,6 +784,623 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRepeatableDDMFormFieldAsRepeatableGroupAndResourcePermissions()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"text", "text", DDMFormFieldTypeConstants.TEXT, "string", false,
+				true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				_getTextsContent(
+					RandomTestUtil.randomString(),
+					RandomTestUtil.randomString()),
+				ddmStructure.getStructureKey(), null);
+
+		Role guestRole = _roleLocalService.getRole(
+			_group.getCompanyId(), RoleConstants.GUEST);
+
+		_deleteResourcePermissions(
+			JournalArticle.class.getName(), journalArticle.getResourcePrimKey(),
+			guestRole);
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), 2, itemObjectEntries.size());
+
+		ObjectEntry itemObjectEntry = itemObjectEntries.get(0);
+
+		ModelResourcePermission<ObjectEntry> modelResourcePermission =
+			_objectEntryService.getModelResourcePermission(
+				itemObjectEntry.getObjectDefinitionId());
+
+		PermissionChecker permissionChecker =
+			PermissionCheckerFactoryUtil.create(
+				_userLocalService.getGuestUser(_group.getCompanyId()));
+
+		Assert.assertFalse(
+			modelResourcePermission.contains(
+				permissionChecker, itemObjectEntry, ActionKeys.VIEW));
+
+		_setResourcePermissions(
+			objectEntry.getModelClassName(), objectEntry.getObjectEntryId(),
+			guestRole, ActionKeys.VIEW);
+
+		Assert.assertTrue(
+			modelResourcePermission.contains(
+				permissionChecker, itemObjectEntry, ActionKeys.VIEW));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDDMFormFieldAsRepeatableGroupAndThenAsJSON()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"text", "text", DDMFormFieldTypeConstants.TEXT, "string", false,
+				true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
+			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
+			ddmStructure.getStructureId(),
+			_portal.getClassNameId(JournalArticle.class),
+			TemplateConstants.LANG_TYPE_FTL,
+			"<#list text.getSiblings() as item>[${item.getData()}]</#list>",
+			LocaleUtil.US);
+
+		String[] texts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), _getTextsContent(texts),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), texts.length,
+			itemObjectEntries.size());
+
+		String[] newTexts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+
+		journalArticle = JournalTestUtil.updateArticle(
+			journalArticle, RandomTestUtil.randomString(),
+			_getTextsContent(newTexts), false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		String content = _render(ddmTemplate, objectEntry);
+
+		Assert.assertTrue(
+			content,
+			content.contains(
+				StringBundler.concat(
+					"[", newTexts[0], "][", newTexts[1], "]")));
+		Assert.assertFalse(content, content.contains(texts[0]));
+
+		JournalTestUtil.updateArticle(
+			journalArticle, RandomTestUtil.randomString(), _getTextsContent(),
+			false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		objectEntry = _getObjectEntry(journalArticle);
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		Assert.assertEquals("[]", values.get("text"));
+
+		content = _render(ddmTemplate, objectEntry);
+
+		Assert.assertTrue(content, content.contains("[]"));
+		Assert.assertFalse(content, content.contains(texts[0]));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDDMFormFieldAsRepeatableGroupWithRemovedItems()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"text", "text", DDMFormFieldTypeConstants.TEXT, "string", false,
+				true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		String[] texts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString(),
+			RandomTestUtil.randomString()
+		};
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), _getTextsContent(texts),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), texts.length,
+			itemObjectEntries.size());
+
+		journalArticle = JournalTestUtil.updateArticle(
+			journalArticle, RandomTestUtil.randomString(),
+			_getTextsContent(texts[0]), false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		itemObjectEntries = _getItemObjectEntries(objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), 1, itemObjectEntries.size());
+
+		ObjectEntry itemObjectEntry = itemObjectEntries.get(0);
+
+		Map<String, Serializable> values = itemObjectEntry.getValues();
+
+		Assert.assertEquals(texts[0], GetterUtil.getString(values.get("text")));
+
+		JournalTestUtil.updateArticle(
+			journalArticle, RandomTestUtil.randomString(),
+			_getTextsContent(StringPool.BLANK), false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		Assert.assertEquals(
+			Collections.emptyList(), _getItemObjectEntries(objectEntry));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDDMFormFieldNestedBeyondMaximumDepth()
+		throws Exception {
+
+		DDMFormField parentDDMFormField = null;
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		for (int i = 1; i <= (TreeConstants.MAX_HEIGHT + 1); i++) {
+			DDMFormField ddmFormField = DDMFormTestUtil.createDDMFormField(
+				"level" + i, "level" + i, DDMFormFieldTypeConstants.TEXT,
+				"string", false, true, false);
+
+			if (parentDDMFormField == null) {
+				ddmForm.addDDMFormField(ddmFormField);
+			}
+			else {
+				parentDDMFormField.addNestedDDMFormField(ddmFormField);
+			}
+
+			parentDDMFormField = ddmFormField;
+		}
+
+		String leafName = StringUtil.randomId();
+
+		parentDDMFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				leafName, leafName, DDMFormFieldTypeConstants.TEXT, "string",
+				false, false, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		String dynamicElement = _getDynamicElement(
+			RandomTestUtil.randomString(), leafName,
+			DDMFormFieldTypeConstants.TEXT);
+
+		for (int i = TreeConstants.MAX_HEIGHT + 1; i > 0; i--) {
+			dynamicElement = _getDynamicElement(
+				RandomTestUtil.randomString(), "level" + i,
+				DDMFormFieldTypeConstants.TEXT, dynamicElement);
+		}
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				StringBundler.concat(
+					"<root available-locales=\"en_US\" ",
+					"default-locale=\"en_US\">", dynamicElement, "</root>"),
+				ddmStructure.getStructureKey(), null);
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), true, false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				StringBundler.concat(
+					"Migrated the repeatable field level",
+					TreeConstants.MAX_HEIGHT + 1, "FieldSet of the structure ",
+					ddmStructure.getStructureKey(),
+					" as JSON because repeatable groups cannot be nested more ",
+					"than ", TreeConstants.MAX_HEIGHT, " levels deep")));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		for (int i = 1; i <= TreeConstants.MAX_HEIGHT; i++) {
+			List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+				objectEntry);
+
+			Assert.assertEquals(
+				itemObjectEntries.toString(), 1, itemObjectEntries.size());
+
+			objectEntry = itemObjectEntries.get(0);
+		}
+
+		ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+			objectEntry.getObjectDefinitionId(),
+			"level" + (TreeConstants.MAX_HEIGHT + 1) + "FieldSet");
+
+		Assert.assertEquals(
+			ObjectFieldConstants.BUSINESS_TYPE_RICH_TEXT,
+			objectField.getBusinessType());
+
+		Assert.assertEquals(
+			Collections.emptyList(),
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId()));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDDMFormFieldWithNestedRepeatableDDMFormFieldAsRepeatableGroups()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		DDMFormField accordionDDMFormField = DDMFormTestUtil.createDDMFormField(
+			"accordion", "accordion", DDMFormFieldTypeConstants.TEXT, "string",
+			false, true, false);
+
+		DDMFormField accordionDescriptionDDMFormField =
+			DDMFormTestUtil.createDDMFormField(
+				"accordionDescription", "accordionDescription",
+				DDMFormFieldTypeConstants.TEXT, "string", false, true, false);
+
+		accordionDescriptionDDMFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"url", "url", DDMFormFieldTypeConstants.TEXT, "string", false,
+				false, false));
+
+		accordionDDMFormField.addNestedDDMFormField(
+			accordionDescriptionDDMFormField);
+
+		ddmForm.addDDMFormField(accordionDDMFormField);
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
+			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
+			ddmStructure.getStructureId(),
+			_portal.getClassNameId(JournalArticle.class),
+			TemplateConstants.LANG_TYPE_FTL,
+			StringBundler.concat(
+				"<#list accordionFieldSet.getSiblings() as accordion>[",
+				"${accordion.getChild(\"accordion\").getData()}<#list ",
+				"accordion.getChild(\"accordionDescriptionFieldSet\").",
+				"getSiblings() as accordionDescription>(",
+				"${accordionDescription.getChild(\"accordionDescription\").",
+				"getData()}|${accordionDescription.getChild(",
+				"\"accordionDescriptionFieldSetFieldSet\").getChild(\"url\").",
+				"getData()})</#list>]</#list>"),
+			LocaleUtil.US);
+
+		StringBundler sb = new StringBundler();
+
+		sb.append("<root available-locales=\"en_US\" ");
+		sb.append("default-locale=\"en_US\">");
+
+		String[] accordions = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+		String[][] accordionDescriptions = {
+			{RandomTestUtil.randomString(), RandomTestUtil.randomString()},
+			{RandomTestUtil.randomString()}
+		};
+		String[][] urls = {
+			{RandomTestUtil.randomString(), RandomTestUtil.randomString()},
+			{RandomTestUtil.randomString()}
+		};
+
+		StringBundler expectedContentSB = new StringBundler();
+
+		for (int i = 0; i < accordions.length; i++) {
+			expectedContentSB.append("[");
+			expectedContentSB.append(accordions[i]);
+
+			String[] accordionDescriptionDynamicElements =
+				new String[accordionDescriptions[i].length];
+
+			for (int j = 0; j < accordionDescriptions[i].length; j++) {
+				accordionDescriptionDynamicElements[j] = _getDynamicElement(
+					accordionDescriptions[i][j], "accordionDescription",
+					DDMFormFieldTypeConstants.TEXT,
+					_getDynamicElement(
+						urls[i][j], "url", DDMFormFieldTypeConstants.TEXT));
+
+				expectedContentSB.append("(");
+				expectedContentSB.append(accordionDescriptions[i][j]);
+				expectedContentSB.append("|");
+				expectedContentSB.append(urls[i][j]);
+				expectedContentSB.append(")");
+			}
+
+			expectedContentSB.append("]");
+
+			sb.append(
+				_getDynamicElement(
+					accordions[i], "accordion", DDMFormFieldTypeConstants.TEXT,
+					accordionDescriptionDynamicElements));
+		}
+
+		sb.append("</root>");
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), sb.toString(),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		String content = _render(ddmTemplate, _getObjectEntry(journalArticle));
+
+		Assert.assertTrue(
+			content, content.contains(expectedContentSB.toString()));
+
+		_withNewDepotEntry(
+			() -> {
+				BackgroundTaskResult backgroundTaskResult = _execute(
+					_group.getGroupId(), true, false);
+
+				_assertSuccessful(backgroundTaskResult);
+
+				String statusMessage = backgroundTaskResult.getStatusMessage();
+
+				Assert.assertFalse(
+					statusMessage, statusMessage.contains(" as JSON because"));
+
+				ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+				List<ObjectRelationship> objectRelationships =
+					_objectRelationshipLocalService.getObjectRelationships(
+						objectEntry.getObjectDefinitionId());
+
+				ObjectRelationship objectRelationship = objectRelationships.get(
+					0);
+
+				List<ObjectRelationship> nestedObjectRelationships =
+					_objectRelationshipLocalService.getObjectRelationships(
+						objectRelationship.getObjectDefinitionId2());
+
+				ObjectRelationship nestedObjectRelationship =
+					nestedObjectRelationships.get(0);
+
+				String externalReferenceCode =
+					nestedObjectRelationship.getExternalReferenceCode();
+
+				Assert.assertTrue(
+					externalReferenceCode,
+					externalReferenceCode.length() <= 75);
+
+				List<ObjectEntry> accordionObjectEntries =
+					_getItemObjectEntries(objectEntry);
+
+				Assert.assertEquals(
+					accordionObjectEntries.toString(), accordions.length,
+					accordionObjectEntries.size());
+
+				for (int i = 0; i < accordions.length; i++) {
+					ObjectEntry accordionObjectEntry =
+						accordionObjectEntries.get(i);
+
+					Map<String, Serializable> values =
+						accordionObjectEntry.getValues();
+
+					Assert.assertEquals(
+						accordions[i],
+						GetterUtil.getString(values.get("accordion")));
+
+					List<ObjectEntry> accordionDescriptionObjectEntries =
+						_getItemObjectEntries(accordionObjectEntry);
+
+					Assert.assertEquals(
+						accordionDescriptionObjectEntries.toString(),
+						accordionDescriptions[i].length,
+						accordionDescriptionObjectEntries.size());
+
+					for (int j = 0; j < accordionDescriptions[i].length; j++) {
+						ObjectEntry accordionDescriptionObjectEntry =
+							accordionDescriptionObjectEntries.get(j);
+
+						Map<String, Serializable> accordionDescriptionValues =
+							accordionDescriptionObjectEntry.getValues();
+
+						Assert.assertEquals(
+							accordionDescriptions[i][j],
+							GetterUtil.getString(
+								accordionDescriptionValues.get(
+									"accordionDescription")));
+						Assert.assertEquals(
+							urls[i][j],
+							GetterUtil.getString(
+								accordionDescriptionValues.get("url")));
+					}
+				}
+			});
+	}
+
+	@Test
+	public void testExecuteWithRepeatableDocumentLibraryDDMFormFieldAsRepeatableGroup()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"document", "document",
+				DDMFormFieldTypeConstants.DOCUMENT_LIBRARY, "document-library",
+				false, true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		FileEntry[] fileEntries = {
+			_addFileEntry(null), _addFileEntry(null), _addFileEntry(null)
+		};
+
+		StringBundler sb = new StringBundler();
+
+		sb.append("<root available-locales=\"en_US\" ");
+		sb.append("default-locale=\"en_US\">");
+
+		for (FileEntry fileEntry : fileEntries) {
+			sb.append(
+				_getDynamicElement(
+					_getFileEntryData(fileEntry), "document",
+					DDMFormFieldTypeConstants.DOCUMENT_LIBRARY));
+		}
+
+		sb.append(
+			_getDynamicElement(
+				JSONUtil.put(
+					"title", RandomTestUtil.randomString()
+				).toString(),
+				"document", DDMFormFieldTypeConstants.DOCUMENT_LIBRARY));
+
+		sb.append("</root>");
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), sb.toString(),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		Assert.assertNull(
+			_objectFieldLocalService.fetchObjectField(
+				objectEntry.getObjectDefinitionId(), "document"));
+
+		List<ObjectRelationship> objectRelationships =
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId());
+
+		Assert.assertEquals(
+			objectRelationships.toString(), 1, objectRelationships.size());
+
+		ObjectRelationship objectRelationship = objectRelationships.get(0);
+
+		Assert.assertTrue(objectRelationship.isEdge());
+		Assert.assertEquals(
+			ObjectRelationshipConstants.DELETION_TYPE_CASCADE,
+			objectRelationship.getDeletionType());
+		Assert.assertEquals(
+			ObjectRelationshipConstants.TYPE_ONE_TO_MANY,
+			objectRelationship.getType());
+
+		ObjectDefinition repeatableGroupObjectDefinition =
+			_objectDefinitionLocalService.getObjectDefinition(
+				objectRelationship.getObjectDefinitionId2());
+
+		Assert.assertFalse(
+			repeatableGroupObjectDefinition.isAllowStandaloneObjectEntry());
+		Assert.assertEquals(
+			"CMS_MIGRATION_DDM_STRUCTURE_" + ddmStructure.getStructureId() +
+				"_document",
+			repeatableGroupObjectDefinition.getExternalReferenceCode());
+
+		ObjectFolder objectFolder = _objectFolderLocalService.getObjectFolder(
+			repeatableGroupObjectDefinition.getObjectFolderId());
+
+		Assert.assertEquals(
+			ObjectFolderConstants.
+				EXTERNAL_REFERENCE_CODE_STRUCTURE_REPEATABLE_GROUPS,
+			objectFolder.getExternalReferenceCode());
+
+		ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+			repeatableGroupObjectDefinition.getObjectDefinitionId(),
+			"document");
+
+		Assert.assertEquals(
+			ObjectFieldConstants.BUSINESS_TYPE_ATTACHMENT,
+			objectField.getBusinessType());
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), fileEntries.length + 1,
+			itemObjectEntries.size());
+
+		for (int i = 0; i < fileEntries.length; i++) {
+			ObjectEntry itemObjectEntry = itemObjectEntries.get(i);
+
+			Assert.assertEquals(
+				StringBundler.concat(
+					objectEntry.getExternalReferenceCode(), "_document_", i),
+				itemObjectEntry.getExternalReferenceCode());
+
+			Map<String, Serializable> values = itemObjectEntry.getValues();
+
+			FileEntry fileEntry = _dlAppLocalService.getFileEntry(
+				GetterUtil.getLong(values.get("document")));
+
+			Assert.assertEquals(
+				fileEntries[i].getFileName(), fileEntry.getFileName());
+		}
+
+		ObjectEntry itemObjectEntry = itemObjectEntries.get(fileEntries.length);
+
+		Map<String, Serializable> values = itemObjectEntry.getValues();
+
+		Assert.assertEquals(0, GetterUtil.getLong(values.get("document")));
+	}
+
+	@Test
 	public void testExecuteWithRepeatableFieldsetDDMFormField()
 		throws Exception {
 
@@ -846,8 +1435,15 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				StringBundler.concat(
 					"<root available-locales=\"en_US\" ",
 					"default-locale=\"en_US\">",
-					_getFieldsetDynamicElement(texts[0]),
-					_getFieldsetDynamicElement(texts[1]), "</root>"),
+					_getDynamicElement(
+						null, "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+						_getDynamicElement(
+							texts[0], "text", DDMFormFieldTypeConstants.TEXT)),
+					_getDynamicElement(
+						null, "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+						_getDynamicElement(
+							texts[1], "text", DDMFormFieldTypeConstants.TEXT)),
+					"</root>"),
 				ddmStructure.getStructureKey(), null);
 
 		_assertSuccessful(_execute(_group.getGroupId(), false));
@@ -867,6 +1463,11 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Assert.assertEquals(
 			ObjectFieldConstants.BUSINESS_TYPE_RICH_TEXT,
 			objectField.getBusinessType());
+
+		Assert.assertEquals(
+			Collections.emptyList(),
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId()));
 
 		Map<String, Serializable> values = objectEntry.getValues();
 
@@ -896,6 +1497,243 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 		Assert.assertTrue(
 			script.contains("cmsMigrationContext[\"fieldsetFieldSet\"]"));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableFieldsetDDMFormFieldAsRepeatableGroup()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		DDMFormField ddmFormField = DDMFormTestUtil.createDDMFormField(
+			"fieldset", "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+			StringPool.BLANK, false, true, false);
+
+		DDMFormTestUtil.addNestedTextDDMFormFields(ddmFormField, "text");
+
+		ddmFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"image", "image", DDMFormFieldTypeConstants.IMAGE, "image",
+				false, false, false));
+
+		ddmForm.addDDMFormField(ddmFormField);
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
+			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
+			ddmStructure.getStructureId(),
+			_portal.getClassNameId(JournalArticle.class),
+			TemplateConstants.LANG_TYPE_FTL,
+			StringBundler.concat(
+				"<#list fieldsetFieldSet.getSiblings() as item>[",
+				"${item.getChild(\"fieldsetFieldSetFieldSet\").",
+				"getChild(\"text\").getData()}|",
+				"${item.getChild(\"fieldsetFieldSetFieldSet\").",
+				"getChild(\"image\").getAttribute(\"name\")}]</#list>"),
+			LocaleUtil.US);
+
+		StringBundler sb = new StringBundler();
+
+		sb.append("<root available-locales=\"en_US\" ");
+		sb.append("default-locale=\"en_US\">");
+
+		FileEntry[] fileEntries = {_addFileEntry(null), _addFileEntry(null)};
+		String[] texts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+
+		for (int i = 0; i < texts.length; i++) {
+			sb.append(
+				_getDynamicElement(
+					null, "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+					_getDynamicElement(
+						texts[i], "text", DDMFormFieldTypeConstants.TEXT),
+					_getDynamicElement(
+						_getFileEntryData(fileEntries[i]), "image",
+						DDMFormFieldTypeConstants.IMAGE)));
+		}
+
+		sb.append("</root>");
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), sb.toString(),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		String content = _render(ddmTemplate, _getObjectEntry(journalArticle));
+
+		String expectedContent = StringBundler.concat(
+			"[", texts[0], "|", fileEntries[0].getFileName(), "][", texts[1],
+			"|", fileEntries[1].getFileName(), "]");
+
+		Assert.assertTrue(content, content.contains(expectedContent));
+
+		_withNewDepotEntry(
+			() -> {
+				BackgroundTaskResult backgroundTaskResult = _execute(
+					_group.getGroupId(), true, false);
+
+				_assertSuccessful(backgroundTaskResult);
+
+				String statusMessage = backgroundTaskResult.getStatusMessage();
+
+				Assert.assertTrue(
+					statusMessage,
+					statusMessage.contains(
+						StringBundler.concat(
+							"Migrated the repeatable field fieldsetFieldSet ",
+							"of the structure ", ddmStructure.getStructureKey(),
+							" as a repeatable group and kept the JSON field ",
+							"fieldsetFieldSet")));
+
+				ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+				Assert.assertNull(
+					_objectFieldLocalService.fetchObjectField(
+						objectEntry.getObjectDefinitionId(), "text"));
+
+				List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+					objectEntry);
+
+				Assert.assertEquals(
+					itemObjectEntries.toString(), texts.length,
+					itemObjectEntries.size());
+
+				for (int i = 0; i < texts.length; i++) {
+					ObjectEntry itemObjectEntry = itemObjectEntries.get(i);
+
+					Map<String, Serializable> values =
+						itemObjectEntry.getValues();
+
+					Assert.assertEquals(
+						texts[i], GetterUtil.getString(values.get("text")));
+
+					FileEntry fileEntry = _dlAppLocalService.getFileEntry(
+						GetterUtil.getLong(values.get("image")));
+
+					Assert.assertEquals(
+						fileEntries[i].getFileName(), fileEntry.getFileName());
+				}
+			});
+	}
+
+	@Test
+	public void testExecuteWithRepeatableFieldsetDDMFormFieldWithUnsupportedDDMFormField()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		DDMFormField ddmFormField = DDMFormTestUtil.createDDMFormField(
+			"fieldset", "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+			StringPool.BLANK, false, true, false);
+
+		ddmFormField.addNestedDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"color", "color", DDMFormFieldTypeConstants.COLOR, "string",
+				false, false, false));
+
+		ddmForm.addDDMFormField(ddmFormField);
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				StringBundler.concat(
+					"<root available-locales=\"en_US\" ",
+					"default-locale=\"en_US\">",
+					_getDynamicElement(
+						null, "fieldset", DDMFormFieldTypeConstants.FIELDSET,
+						_getDynamicElement(
+							RandomTestUtil.randomString(), "color",
+							DDMFormFieldTypeConstants.COLOR)),
+					"</root>"),
+				ddmStructure.getStructureKey(), null);
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), true, false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				StringBundler.concat(
+					"Migrated the repeatable field fieldsetFieldSet of the ",
+					"structure ", ddmStructure.getStructureKey(),
+					" as JSON because it contains unsupported field types")));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		ObjectField objectField = _objectFieldLocalService.fetchObjectField(
+			objectEntry.getObjectDefinitionId(), "fieldsetFieldSet");
+
+		Assert.assertEquals(
+			ObjectFieldConstants.BUSINESS_TYPE_RICH_TEXT,
+			objectField.getBusinessType());
+
+		Assert.assertEquals(
+			Collections.emptyList(),
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId()));
+	}
+
+	@Test
+	public void testExecuteWithRepeatableNumericDDMFormFieldAsRepeatableGroup()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"numeric", "numeric", DDMFormFieldTypeConstants.NUMERIC,
+				"integer", false, true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(),
+				StringBundler.concat(
+					"<root available-locales=\"en_US\" ",
+					"default-locale=\"en_US\">",
+					_getDynamicElement(
+						"0", "numeric", DDMFormFieldTypeConstants.NUMERIC),
+					_getDynamicElement(
+						StringPool.BLANK, "numeric",
+						DDMFormFieldTypeConstants.NUMERIC),
+					_getDynamicElement(
+						"5", "numeric", DDMFormFieldTypeConstants.NUMERIC),
+					"</root>"),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), true, false));
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			_getObjectEntry(journalArticle));
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), 2, itemObjectEntries.size());
+
+		ObjectEntry itemObjectEntry = itemObjectEntries.get(0);
+
+		Map<String, Serializable> values = itemObjectEntry.getValues();
+
+		Assert.assertEquals(0L, GetterUtil.getLong(values.get("numeric"), -1));
+
+		itemObjectEntry = itemObjectEntries.get(1);
+
+		values = itemObjectEntry.getValues();
+
+		Assert.assertEquals(5L, GetterUtil.getLong(values.get("numeric")));
 	}
 
 	@Test
@@ -1893,6 +2731,18 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		Assert.assertTrue(GetterUtil.getLong(values.get("file")) > 0);
 	}
 
+	private DepotEntry _addDepotEntry() throws Exception {
+		return _depotEntryLocalService.addDepotEntry(
+			HashMapBuilder.put(
+				LocaleUtil.getDefault(), RandomTestUtil.randomString()
+			).build(),
+			HashMapBuilder.put(
+				LocaleUtil.getDefault(), RandomTestUtil.randomString()
+			).build(),
+			DepotConstants.TYPE_SPACE,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+	}
+
 	private void _addDynamicElement(
 		Element rootElement, String data, String languageId, String name,
 		String type) {
@@ -2052,6 +2902,53 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			backgroundTaskResult.getStatus());
 	}
 
+	private void _deleteDepotEntry(DepotEntry depotEntry) throws Exception {
+		for (DepotEntryGroupRel depotEntryGroupRel :
+				_depotEntryGroupRelLocalService.getDepotEntryGroupRels(
+					depotEntry)) {
+
+			_depotEntryGroupRelLocalService.deleteDepotEntryGroupRel(
+				depotEntryGroupRel);
+		}
+
+		_depotEntryLocalService.deleteDepotEntry(depotEntry);
+	}
+
+	private void _deleteObjectDefinition(ObjectDefinition objectDefinition)
+		throws Exception {
+
+		List<ObjectRelationship> objectRelationships =
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectDefinition.getObjectDefinitionId());
+
+		for (ObjectRelationship objectRelationship : objectRelationships) {
+			if (!objectRelationship.isEdge()) {
+				continue;
+			}
+
+			_objectRelationshipLocalService.updateObjectRelationship(
+				objectRelationship.getExternalReferenceCode(),
+				objectRelationship.getObjectRelationshipId(),
+				objectRelationship.getParameterObjectFieldId(),
+				objectRelationship.getDeletionType(),
+				objectRelationship.getDescriptionMap(), false,
+				objectRelationship.getLabelMap(), null);
+		}
+
+		_objectDefinitionLocalService.deleteObjectDefinition(
+			objectDefinition.getObjectDefinitionId());
+
+		for (ObjectRelationship objectRelationship : objectRelationships) {
+			ObjectDefinition repeatableGroupObjectDefinition =
+				_objectDefinitionLocalService.fetchObjectDefinition(
+					objectRelationship.getObjectDefinitionId2());
+
+			if (repeatableGroupObjectDefinition != null) {
+				_deleteObjectDefinition(repeatableGroupObjectDefinition);
+			}
+		}
+	}
+
 	private void _deleteResourcePermissions(
 			String className, long classPK, Role role)
 		throws Exception {
@@ -2066,6 +2963,14 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			long sourceGroupId, boolean rewritePages)
 		throws Exception {
 
+		return _execute(sourceGroupId, false, rewritePages);
+	}
+
+	private BackgroundTaskResult _execute(
+			long sourceGroupId, boolean migrateRepeatableFields,
+			boolean rewritePages)
+		throws Exception {
+
 		Map<String, Serializable> taskContextMap =
 			HashMapBuilder.<String, Serializable>put(
 				"depotEntryId", _depotEntry.getDepotEntryId()
@@ -2075,6 +2980,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				"migrateFileEntries", true
 			).put(
 				"migrateJournalArticles", true
+			).put(
+				"migrateRepeatableFields", migrateRepeatableFields
 			).put(
 				"rewritePages", rewritePages
 			).put(
@@ -2182,16 +3089,80 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return sb.toString();
 	}
 
-	private String _getFieldsetDynamicElement(String text) {
-		return StringBundler.concat(
-			"<dynamic-element field-reference=\"fieldset\" index-type=\"\" ",
-			"instance-id=\"", RandomTestUtil.randomString(8),
-			"\" name=\"fieldset\" type=\"fieldset\"><dynamic-element ",
-			"field-reference=\"text\" index-type=\"text\" instance-id=\"",
-			RandomTestUtil.randomString(8),
-			"\" name=\"text\" type=\"text\"><dynamic-content ",
-			"language-id=\"en_US\"><![CDATA[", text,
-			"]]></dynamic-content></dynamic-element></dynamic-element>");
+	private String _getDynamicElement(
+		String data, String name, String type,
+		String... nestedDynamicElements) {
+
+		StringBundler sb = new StringBundler();
+
+		sb.append("<dynamic-element field-reference=\"");
+		sb.append(name);
+		sb.append("\" index-type=\"text\" instance-id=\"");
+		sb.append(RandomTestUtil.randomString(8));
+		sb.append("\" name=\"");
+		sb.append(name);
+		sb.append("\" type=\"");
+		sb.append(type);
+		sb.append("\">");
+
+		if (data != null) {
+			sb.append("<dynamic-content language-id=\"en_US\"><![CDATA[");
+			sb.append(data);
+			sb.append("]]></dynamic-content>");
+		}
+
+		for (String nestedDynamicElement : nestedDynamicElements) {
+			sb.append(nestedDynamicElement);
+		}
+
+		sb.append("</dynamic-element>");
+
+		return sb.toString();
+	}
+
+	private String _getFileEntryData(FileEntry fileEntry) {
+		return JSONUtil.put(
+			"alt", StringPool.BLANK
+		).put(
+			"fileEntryId", fileEntry.getFileEntryId()
+		).put(
+			"groupId", fileEntry.getGroupId()
+		).put(
+			"name", fileEntry.getFileName()
+		).put(
+			"title", fileEntry.getTitle()
+		).put(
+			"type", "document"
+		).put(
+			"uuid", fileEntry.getUuid()
+		).toString();
+	}
+
+	private List<ObjectEntry> _getItemObjectEntries(ObjectEntry objectEntry)
+		throws Exception {
+
+		List<ObjectEntry> itemObjectEntries = new ArrayList<>();
+
+		for (ObjectRelationship objectRelationship :
+				_objectRelationshipLocalService.getObjectRelationships(
+					objectEntry.getObjectDefinitionId())) {
+
+			itemObjectEntries.addAll(
+				_objectEntryLocalService.getOneToManyObjectEntries(
+					objectEntry.getGroupId(),
+					objectRelationship.getObjectRelationshipId(), null, true,
+					objectEntry.getObjectEntryId(), true, null,
+					QueryUtil.ALL_POS, QueryUtil.ALL_POS, null));
+		}
+
+		itemObjectEntries.sort(
+			Comparator.comparingInt(
+				itemObjectEntry -> GetterUtil.getInteger(
+					StringUtil.extractLast(
+						itemObjectEntry.getExternalReferenceCode(),
+						StringPool.UNDERLINE))));
+
+		return itemObjectEntries;
 	}
 
 	private MockHttpServletRequest _getMockHttpServletRequest(Layout layout)
@@ -2224,7 +3195,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		dynamicQuery.setProjection(
 			ProjectionFactoryUtil.property("objectDefinitionId"));
 
-		return new HashSet<>(
+		return new TreeSet<>(
 			_objectDefinitionLocalService.dynamicQuery(dynamicQuery));
 	}
 
@@ -2257,6 +3228,23 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return _objectEntryLocalService.getObjectEntry(
 			objectEntryExternalReferenceCode, _depotEntry.getGroupId(),
 			objectDefinition.getObjectDefinitionId());
+	}
+
+	private String _getTextsContent(String... texts) {
+		StringBundler sb = new StringBundler();
+
+		sb.append("<root available-locales=\"en_US\" ");
+		sb.append("default-locale=\"en_US\">");
+
+		for (String text : texts) {
+			sb.append(
+				_getDynamicElement(
+					text, "text", DDMFormFieldTypeConstants.TEXT));
+		}
+
+		sb.append("</root>");
+
+		return sb.toString();
 	}
 
 	private boolean _hasViewResourcePermission(
@@ -2327,6 +3315,45 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		return _getObjectEntry(journalArticle);
 	}
 
+	private String _render(DDMTemplate ddmTemplate, ObjectEntry objectEntry)
+		throws Exception {
+
+		MockHttpServletRequest mockHttpServletRequest =
+			_getMockHttpServletRequest(
+				LayoutTestUtil.addTypeContentLayout(_group));
+
+		DDMTemplate migratedDDMTemplate =
+			_ddmTemplateLocalService.getDDMTemplateByExternalReferenceCode(
+				"CMS_MIGRATION_DDM_TEMPLATE_" + ddmTemplate.getTemplateId(),
+				_group.getGroupId());
+
+		Template template = TemplateManagerUtil.getTemplate(
+			TemplateConstants.LANG_TYPE_FTL,
+			new StringTemplateResource(
+				migratedDDMTemplate.getTemplateKey(),
+				migratedDDMTemplate.getScript()),
+			false);
+
+		template.prepare(mockHttpServletRequest);
+
+		ThemeDisplay themeDisplay =
+			(ThemeDisplay)mockHttpServletRequest.getAttribute(
+				WebKeys.THEME_DISPLAY);
+
+		template.put(
+			"objectEntryId",
+			new TemplateNode(
+				themeDisplay, "objectEntryId",
+				String.valueOf(objectEntry.getObjectEntryId()),
+				StringPool.BLANK, new HashMap<>()));
+
+		UnsyncStringWriter unsyncStringWriter = new UnsyncStringWriter();
+
+		template.processTemplate(unsyncStringWriter);
+
+		return unsyncStringWriter.toString();
+	}
+
 	private String _renderAssetPublisherWidgetTemplate(
 			BlogsEntry blogsEntry, Layout layout)
 		throws Exception {
@@ -2371,6 +3398,23 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_group.getCompanyId(), className,
 			ResourceConstants.SCOPE_INDIVIDUAL, String.valueOf(classPK),
 			role.getRoleId(), actionIds);
+	}
+
+	private void _withNewDepotEntry(UnsafeRunnable<Exception> unsafeRunnable)
+		throws Exception {
+
+		DepotEntry depotEntry = _depotEntry;
+
+		_depotEntry = _addDepotEntry();
+
+		try {
+			unsafeRunnable.run();
+		}
+		finally {
+			_deleteDepotEntry(_depotEntry);
+
+			_depotEntry = depotEntry;
+		}
 	}
 
 	private static final String _CMS_CONTENT_DISPLAY_PORTLET_NAME =
@@ -2444,7 +3488,16 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	private ObjectEntryLocalService _objectEntryLocalService;
 
 	@Inject
+	private ObjectEntryService _objectEntryService;
+
+	@Inject
 	private ObjectFieldLocalService _objectFieldLocalService;
+
+	@Inject
+	private ObjectFolderLocalService _objectFolderLocalService;
+
+	@Inject
+	private ObjectRelationshipLocalService _objectRelationshipLocalService;
 
 	private Set<Long> _originalObjectDefinitionIds;
 
@@ -2474,5 +3527,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 
 	@Inject
 	private TemplateEntryLocalService _templateEntryLocalService;
+
+	@Inject
+	private UserLocalService _userLocalService;
 
 }
