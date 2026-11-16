@@ -10,9 +10,11 @@ import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTy
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.list.type.model.ListTypeEntry;
 import com.liferay.object.constants.ObjectFieldConstants;
+import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.model.ModelHintsUtil;
 import com.liferay.portal.kernel.util.ArrayUtil;
+import com.liferay.portal.kernel.util.DigesterUtil;
 import com.liferay.portal.kernel.util.HashMapBuilder;
 import com.liferay.portal.kernel.util.ListUtil;
 import com.liferay.portal.kernel.util.SetUtil;
@@ -182,6 +184,16 @@ public class CMSMigrationDDMFormFieldUtil {
 		return key.substring(0, maxLength - suffix.length()) + suffix;
 	}
 
+	public static DDMFormField getNonrepeatableDDMFormField(
+		DDMFormField ddmFormField) {
+
+		DDMFormField nonrepeatableDDMFormField = new DDMFormField(ddmFormField);
+
+		nonrepeatableDDMFormField.setRepeatable(false);
+
+		return nonrepeatableDDMFormField;
+	}
+
 	public static String getObjectFieldName(DDMFormField ddmFormField) {
 		String fieldReference = ddmFormField.getFieldReference();
 
@@ -210,6 +222,42 @@ public class CMSMigrationDDMFormFieldUtil {
 		}
 
 		return name;
+	}
+
+	public static String getRepeatableGroupExternalReferenceCode(
+		DDMFormField ddmFormField,
+		String objectDefinitionExternalReferenceCode) {
+
+		String externalReferenceCode = StringBundler.concat(
+			objectDefinitionExternalReferenceCode, StringPool.UNDERLINE,
+			getObjectFieldName(ddmFormField));
+
+		if (externalReferenceCode.length() <=
+				_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH) {
+
+			return externalReferenceCode;
+		}
+
+		String hash = DigesterUtil.digestHex(
+			DigesterUtil.SHA_256, externalReferenceCode);
+
+		hash = hash.substring(0, 12);
+
+		return StringBundler.concat(
+			externalReferenceCode.substring(
+				0,
+				_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH -
+					hash.length() - 1),
+			StringPool.UNDERLINE, hash);
+	}
+
+	public static String getRepeatableGroupItemExternalReferenceCode(
+		DDMFormField ddmFormField, int index,
+		String objectEntryExternalReferenceCode) {
+
+		return StringBundler.concat(
+			objectEntryExternalReferenceCode, StringPool.UNDERLINE,
+			getObjectFieldName(ddmFormField), StringPool.UNDERLINE, index);
 	}
 
 	public static boolean isAttachmentField(DDMFormField ddmFormField) {
@@ -266,6 +314,56 @@ public class CMSMigrationDDMFormFieldUtil {
 		return false;
 	}
 
+	public static boolean isRepeatableGroupFieldSupported(
+		DDMFormField ddmFormField) {
+
+		if (!Objects.equals(
+				ddmFormField.getType(), DDMFormFieldTypeConstants.FIELDSET)) {
+
+			return _isRepeatableGroupItemFieldSupported(ddmFormField);
+		}
+
+		boolean leafFieldFound = false;
+
+		for (DDMFormField nestedDDMFormField :
+				ddmFormField.getNestedDDMFormFields()) {
+
+			if (isIgnoredField(nestedDDMFormField)) {
+				continue;
+			}
+
+			if (nestedDDMFormField.isRepeatable()) {
+				leafFieldFound = true;
+
+				continue;
+			}
+
+			if (Objects.equals(
+					nestedDDMFormField.getType(),
+					DDMFormFieldTypeConstants.FIELDSET)) {
+
+				if (ListUtil.isEmpty(
+						nestedDDMFormField.getNestedDDMFormFields())) {
+
+					continue;
+				}
+
+				if (!isRepeatableGroupFieldSupported(nestedDDMFormField)) {
+					return false;
+				}
+			}
+			else if (!_isRepeatableGroupItemFieldSupported(
+						nestedDDMFormField)) {
+
+				return false;
+			}
+
+			leafFieldFound = true;
+		}
+
+		return leafFieldFound;
+	}
+
 	public static boolean isTypeImage(DDMFormField ddmFormField) {
 		String type = ddmFormField.getType();
 
@@ -281,6 +379,33 @@ public class CMSMigrationDDMFormFieldUtil {
 	public static String unescapeJSONFieldValue(String value) {
 		return StringUtil.replace(
 			value, StringPool.AMPERSAND, StringPool.SEMICOLON, _unescapeMap);
+	}
+
+	private static boolean _isRepeatableGroupItemFieldSupported(
+		DDMFormField ddmFormField) {
+
+		String type = ddmFormField.getType();
+
+		if ((type.equals(DDMFormFieldTypeConstants.RADIO) ||
+			 type.equals(DDMFormFieldTypeConstants.SELECT)) &&
+			!ddmFormField.isMultiple()) {
+
+			return true;
+		}
+
+		return ArrayUtil.contains(
+			new String[] {
+				DDMFormFieldTypeConstants.CHECKBOX,
+				DDMFormFieldTypeConstants.DATE,
+				DDMFormFieldTypeConstants.DATE_TIME,
+				DDMFormFieldTypeConstants.DDM_IMAGE,
+				DDMFormFieldTypeConstants.DOCUMENT_LIBRARY,
+				DDMFormFieldTypeConstants.IMAGE,
+				DDMFormFieldTypeConstants.NUMERIC,
+				DDMFormFieldTypeConstants.RICH_TEXT,
+				DDMFormFieldTypeConstants.TEXT
+			},
+			type);
 	}
 
 	private static String _toAlphanumeric(String s) {
@@ -302,6 +427,9 @@ public class CMSMigrationDDMFormFieldUtil {
 	private static final String[] _IGNORED_TYPES = {
 		DDMFormFieldTypeConstants.PARAGRAPH, DDMFormFieldTypeConstants.SEPARATOR
 	};
+
+	private static final int
+		_REPEATABLE_GROUP_EXTERNAL_REFERENCE_CODE_MAX_LENGTH = 75;
 
 	private static final Set<String> _reservedNames = SetUtil.fromArray(
 		"actions", "companyid", "createdate", "creator", "currentdate",

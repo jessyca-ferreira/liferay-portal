@@ -12,6 +12,7 @@ import com.liferay.cms.migration.web.internal.migration.structure.CMSMigrationDD
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
 import com.liferay.document.library.kernel.service.DLAppLocalService;
 import com.liferay.dynamic.data.mapping.form.field.type.constants.DDMFormFieldTypeConstants;
+import com.liferay.dynamic.data.mapping.model.DDMForm;
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.dynamic.data.mapping.model.Value;
 import com.liferay.dynamic.data.mapping.storage.DDMFormFieldValue;
@@ -21,6 +22,7 @@ import com.liferay.journal.service.JournalArticleLocalService;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.json.JSONArray;
@@ -87,6 +89,12 @@ public class DDMFormValuesConverter {
 			cmsMigrationContext, ddmFormValues.getDDMFormFieldValues(),
 			ddmFormValues.getDefaultLocale(), objectDefinitionId,
 			objectEntryValues);
+
+		DDMForm ddmForm = ddmFormValues.getDDMForm();
+
+		_putEmptyJSONArraysForMissingValues(
+			cmsMigrationContext, ddmForm.getDDMFormFields(), objectDefinitionId,
+			objectEntryValues.getValues());
 
 		return objectEntryValues;
 	}
@@ -214,6 +222,36 @@ public class DDMFormValuesConverter {
 		}
 
 		return null;
+	}
+
+	private ObjectEntryValues _getItemObjectEntryValues(
+		CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+		DDMFormFieldValue ddmFormFieldValue, Locale defaultLocale,
+		long objectDefinitionId) {
+
+		ObjectEntryValues objectEntryValues = new ObjectEntryValues();
+
+		if (!Objects.equals(
+				ddmFormField.getType(), DDMFormFieldTypeConstants.FIELDSET)) {
+
+			_putLeafValue(
+				cmsMigrationContext,
+				CMSMigrationDDMFormFieldUtil.getNonrepeatableDDMFormField(
+					ddmFormField),
+				ddmFormFieldValue, defaultLocale,
+				objectEntryValues.getValues());
+		}
+
+		_putObjectEntryValues(
+			cmsMigrationContext,
+			ddmFormFieldValue.getNestedDDMFormFieldValues(), defaultLocale,
+			objectDefinitionId, objectEntryValues);
+
+		_putEmptyJSONArraysForMissingValues(
+			cmsMigrationContext, ddmFormField.getNestedDDMFormFields(),
+			objectDefinitionId, objectEntryValues.getValues());
+
+		return objectEntryValues;
 	}
 
 	private Serializable _getObjectFieldValue(
@@ -397,6 +435,44 @@ public class DDMFormValuesConverter {
 		return jsonObject.put("nestedFieldValues", nestedJSONArray);
 	}
 
+	private boolean _isEmpty(DDMFormFieldValue ddmFormFieldValue) {
+		DDMFormField ddmFormField = ddmFormFieldValue.getDDMFormField();
+
+		if ((ddmFormField == null) ||
+			CMSMigrationDDMFormFieldUtil.isIgnoredField(ddmFormField)) {
+
+			return true;
+		}
+
+		Value value = ddmFormFieldValue.getValue();
+
+		if (value != null) {
+			Map<Locale, String> values = value.getValues();
+
+			for (String data : values.values()) {
+				if (Validator.isBlank(data)) {
+					continue;
+				}
+
+				List<String> optionValues = _getOptionValues(data);
+
+				if (!optionValues.isEmpty()) {
+					return false;
+				}
+			}
+		}
+
+		for (DDMFormFieldValue nestedDDMFormFieldValue :
+				ddmFormFieldValue.getNestedDDMFormFieldValues()) {
+
+			if (!_isEmpty(nestedDDMFormFieldValue)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private Serializable _parseDate(String pattern, String data) {
 		DateFormat dateFormat = new SimpleDateFormat(pattern);
 
@@ -445,6 +521,32 @@ public class DDMFormValuesConverter {
 			CMSMigrationDDMFormFieldUtil.getAltObjectFieldName(ddmFormField) +
 				"_i18n",
 			(Serializable)altValues);
+	}
+
+	private void _putEmptyJSONArraysForMissingValues(
+		CMSMigrationContext cmsMigrationContext,
+		List<DDMFormField> ddmFormFields, long objectDefinitionId,
+		Map<String, Serializable> values) {
+
+		for (DDMFormField ddmFormField :
+				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+					ddmFormFields)) {
+
+			if (!CMSMigrationDDMFormFieldUtil.isJSONField(ddmFormField)) {
+				continue;
+			}
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.getRepeatableGroupObjectRelationship(
+					ddmFormField, objectDefinitionId);
+
+			if (objectRelationship == null) {
+				values.putIfAbsent(
+					CMSMigrationDDMFormFieldUtil.getObjectFieldName(
+						ddmFormField),
+					"[]");
+			}
+		}
 	}
 
 	private void _putLeafValue(
@@ -523,6 +625,32 @@ public class DDMFormValuesConverter {
 
 			if ((ddmFormField == null) ||
 				CMSMigrationDDMFormFieldUtil.isIgnoredField(ddmFormField)) {
+
+				continue;
+			}
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.getRepeatableGroupObjectRelationship(
+					ddmFormField, objectDefinitionId);
+
+			if (objectRelationship != null) {
+				Map<DDMFormField, List<ObjectEntryValues>>
+					repeatableGroupItemsMap =
+						objectEntryValues.getRepeatableGroupItemsMap();
+
+				repeatableGroupItemsMap.putIfAbsent(
+					ddmFormField, new ArrayList<>());
+
+				if (!_isEmpty(ddmFormFieldValue)) {
+					List<ObjectEntryValues> itemObjectEntryValuesList =
+						repeatableGroupItemsMap.get(ddmFormField);
+
+					itemObjectEntryValuesList.add(
+						_getItemObjectEntryValues(
+							cmsMigrationContext, ddmFormField,
+							ddmFormFieldValue, defaultLocale,
+							objectRelationship.getObjectDefinitionId2()));
+				}
 
 				continue;
 			}
