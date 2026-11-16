@@ -20,6 +20,7 @@ import com.liferay.journal.service.JournalArticleLocalService;
 import com.liferay.object.constants.ObjectFieldConstants;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.json.JSONArray;
@@ -213,6 +214,32 @@ public class DDMFormValuesConverter {
 		}
 
 		return null;
+	}
+
+	private ObjectEntryValues _getItemObjectEntryValues(
+		CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+		DDMFormFieldValue ddmFormFieldValue, Locale defaultLocale,
+		long objectDefinitionId) {
+
+		ObjectEntryValues objectEntryValues = new ObjectEntryValues();
+
+		if (!Objects.equals(
+				ddmFormField.getType(), DDMFormFieldTypeConstants.FIELDSET)) {
+
+			_putLeafValue(
+				cmsMigrationContext,
+				CMSMigrationDDMFormFieldUtil.getNonrepeatableDDMFormField(
+					ddmFormField),
+				ddmFormFieldValue, defaultLocale,
+				objectEntryValues.getValues());
+		}
+
+		_putObjectEntryValues(
+			cmsMigrationContext,
+			ddmFormFieldValue.getNestedDDMFormFieldValues(), defaultLocale,
+			objectDefinitionId, objectEntryValues);
+
+		return objectEntryValues;
 	}
 
 	private Serializable _getObjectFieldValue(
@@ -522,6 +549,34 @@ public class DDMFormValuesConverter {
 
 			if ((ddmFormField == null) ||
 				CMSMigrationDDMFormFieldUtil.isIgnoredField(ddmFormField)) {
+
+				continue;
+			}
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.getRepeatableGroupObjectRelationship(
+					ddmFormField, objectDefinitionId);
+
+			if (objectRelationship != null) {
+				Map<DDMFormField, List<ObjectEntryValues>>
+					repeatableGroupItemsMap =
+						objectEntryValues.getRepeatableGroupItemsMap();
+
+				repeatableGroupItemsMap.putIfAbsent(
+					ddmFormField, new ArrayList<>());
+
+				ObjectEntryValues itemObjectEntryValues =
+					_getItemObjectEntryValues(
+						cmsMigrationContext, ddmFormField, ddmFormFieldValue,
+						defaultLocale,
+						objectRelationship.getObjectDefinitionId2());
+
+				if (!itemObjectEntryValues.isEmpty()) {
+					List<ObjectEntryValues> itemObjectEntryValuesList =
+						repeatableGroupItemsMap.get(ddmFormField);
+
+					itemObjectEntryValuesList.add(itemObjectEntryValues);
+				}
 
 				continue;
 			}

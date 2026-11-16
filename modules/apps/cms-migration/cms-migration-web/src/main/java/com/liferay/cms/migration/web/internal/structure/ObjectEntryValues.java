@@ -6,6 +6,7 @@
 package com.liferay.cms.migration.web.internal.structure;
 
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
+import com.liferay.portal.kernel.util.Validator;
 
 import java.io.Serializable;
 
@@ -27,6 +28,33 @@ public class ObjectEntryValues {
 
 	public Map<String, Serializable> getValues() {
 		return _values;
+	}
+
+	public boolean isEmpty() {
+		for (Serializable value : _values.values()) {
+			if (value instanceof Map) {
+				Map<?, ?> map = (Map<?, ?>)value;
+
+				for (Object localizedValue : map.values()) {
+					if (Validator.isNotNull(localizedValue)) {
+						return false;
+					}
+				}
+			}
+			else if (Validator.isNotNull(value)) {
+				return false;
+			}
+		}
+
+		for (List<ObjectEntryValues> itemObjectEntryValuesList :
+				_repeatableGroupItemsMap.values()) {
+
+			if (!itemObjectEntryValuesList.isEmpty()) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private final Map<DDMFormField, List<ObjectEntryValues>>
