@@ -75,6 +75,7 @@ describe('Configuration', () => {
 			[`${PORTLET_NAMESPACE}migrateBlogsEntries`]: true,
 			[`${PORTLET_NAMESPACE}migrateFileEntries`]: true,
 			[`${PORTLET_NAMESPACE}migrateJournalArticles`]: true,
+			[`${PORTLET_NAMESPACE}migrateRepeatableFields`]: false,
 			[`${PORTLET_NAMESPACE}rewritePages`]: true,
 			[`${PORTLET_NAMESPACE}sourceGroupId`]: '1',
 		});
@@ -183,11 +184,35 @@ describe('Configuration', () => {
 		});
 	});
 
+	it('posts the repeatable fields option once it is checked', async () => {
+		renderConfiguration();
+
+		await userEvent.click(
+			screen.getByLabelText('cms-migration-repeatable-fields')
+		);
+
+		const {form} = screen.getByRole<HTMLButtonElement>('button', {
+			name: 'cms-migration-start',
+		});
+
+		expect(form).toHaveFormValues({
+			[`${PORTLET_NAMESPACE}migrateRepeatableFields`]: true,
+		});
+	});
+
 	it('explains how the pages are updated', () => {
 		renderConfiguration();
 
 		expect(
 			screen.getByTitle('cms-migration-rewrite-pages-help')
+		).toBeInTheDocument();
+	});
+
+	it('explains how the repeatable fields are migrated', () => {
+		renderConfiguration();
+
+		expect(
+			screen.getByTitle('cms-migration-repeatable-fields-help')
 		).toBeInTheDocument();
 	});
 
