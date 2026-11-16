@@ -38,6 +38,12 @@ const CONTENT_TYPES = [
 		label: Liferay.Language.get('cms-migration-rewrite-pages'),
 		name: 'rewritePages',
 	},
+	{
+		defaultChecked: false,
+		help: Liferay.Language.get('cms-migration-repeatable-fields-help'),
+		label: Liferay.Language.get('cms-migration-repeatable-fields'),
+		name: 'migrateRepeatableFields',
+	},
 ];
 
 const CREATE_NEW_SPACE = '0';
@@ -165,41 +171,43 @@ export default function Configuration({
 							)}
 						</h3>
 
-						{CONTENT_TYPES.map(({help, label, name}) => (
-							<ClayForm.Group
-								className="align-items-start d-flex"
-								key={name}
-							>
-								<UncontrolledClayCheckbox
-									containerProps={{
-										className:
-											'custom-control-primary mb-0',
-									}}
-									defaultChecked
-									label={label}
-									name={`${portletNamespace}${name}`}
-									value="true"
-								/>
-
-								{help && (
-									<ClayButtonWithIcon
-										aria-label={help}
-										className="component-action mt-n2"
-										data-tooltip-align="top"
-										displayType="unstyled"
-										size="sm"
-										style={
-											{
-												'--component-action-hover-background-color':
-													'transparent',
-											} as React.CSSProperties
-										}
-										symbol="question-circle-full"
-										title={help}
+						{CONTENT_TYPES.map(
+							({defaultChecked, help, label, name}) => (
+								<ClayForm.Group
+									className="align-items-start d-flex"
+									key={name}
+								>
+									<UncontrolledClayCheckbox
+										containerProps={{
+											className:
+												'custom-control-primary mb-0',
+										}}
+										defaultChecked={defaultChecked ?? true}
+										label={label}
+										name={`${portletNamespace}${name}`}
+										value="true"
 									/>
-								)}
-							</ClayForm.Group>
-						))}
+
+									{help && (
+										<ClayButtonWithIcon
+											aria-label={help}
+											className="component-action mt-n2"
+											data-tooltip-align="top"
+											displayType="unstyled"
+											size="sm"
+											style={
+												{
+													'--component-action-hover-background-color':
+														'transparent',
+												} as React.CSSProperties
+											}
+											symbol="question-circle-full"
+											title={help}
+										/>
+									)}
+								</ClayForm.Group>
+							)
+						)}
 					</ClayLayout.SheetSection>
 				</ClayTooltipProvider>
 

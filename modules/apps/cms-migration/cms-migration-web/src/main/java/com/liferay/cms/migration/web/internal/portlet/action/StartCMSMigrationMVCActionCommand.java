@@ -91,6 +91,10 @@ public class StartCMSMigrationMVCActionCommand extends BaseMVCActionCommand {
 					ParamUtil.getBoolean(
 						actionRequest, "migrateJournalArticles")
 				).put(
+					"migrateRepeatableFields",
+					ParamUtil.getBoolean(
+						actionRequest, "migrateRepeatableFields")
+				).put(
 					"rewritePages",
 					ParamUtil.getBoolean(actionRequest, "rewritePages")
 				).put(

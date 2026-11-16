@@ -183,6 +183,8 @@ public class CMSMigrationBackgroundTaskExecutor
 						taskContextMap.get("migrateFileEntries")),
 					GetterUtil.getBoolean(
 						taskContextMap.get("migrateJournalArticles")),
+					GetterUtil.getBoolean(
+						taskContextMap.get("migrateRepeatableFields")),
 					cmsMigrationReport,
 					GetterUtil.getBoolean(taskContextMap.get("rewritePages")),
 					serviceContext, sourceGroup,
