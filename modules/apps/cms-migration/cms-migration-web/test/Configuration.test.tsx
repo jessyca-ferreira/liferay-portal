@@ -89,6 +89,7 @@ describe('Configuration', () => {
 			[`${PORTLET_NAMESPACE}migrateObjectEntries`]: false,
 			[`${PORTLET_NAMESPACE}migrateRepeatableFields`]: false,
 			[`${PORTLET_NAMESPACE}rewritePages`]: true,
+			[`${PORTLET_NAMESPACE}skipUnchangedEntries`]: false,
 			[`${PORTLET_NAMESPACE}sourceGroupId`]: '1',
 			[`${PORTLET_NAMESPACE}titleObjectFieldNames`]: '',
 		});
@@ -208,6 +209,22 @@ describe('Configuration', () => {
 
 		expect(form).toHaveFormValues({
 			[`${PORTLET_NAMESPACE}migrateRepeatableFields`]: true,
+		});
+	});
+
+	it('posts the skip unchanged entries option once it is checked', async () => {
+		renderConfiguration();
+
+		await userEvent.click(
+			screen.getByLabelText('cms-migration-skip-unchanged-entries')
+		);
+
+		const {form} = screen.getByRole<HTMLButtonElement>('button', {
+			name: 'cms-migration-start',
+		});
+
+		expect(form).toHaveFormValues({
+			[`${PORTLET_NAMESPACE}skipUnchangedEntries`]: true,
 		});
 	});
 

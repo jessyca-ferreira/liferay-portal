@@ -1155,7 +1155,7 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			false, true,
 			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
 
-		_assertSuccessful(_execute(_group.getGroupId(), false));
+		_assertSuccessful(_execute(_group.getGroupId(), false, false, true));
 
 		objectEntry = _getObjectEntry(journalArticle);
 
@@ -3728,6 +3728,132 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithUnchangedEntries() throws Exception {
+		BlogsEntry blogsEntry = _blogsEntryLocalService.addEntry(
+			TestPropsValues.getUserId(), RandomTestUtil.randomString(),
+			"<p>" + RandomTestUtil.randomString() + "</p>",
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		FileEntry fileEntry = _addFileEntry(StringPool.BLANK);
+
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false, false, true));
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), false, false, true);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		JSONObject jsonObject = JSONFactoryUtil.createJSONObject(
+			backgroundTaskResult.getStatusMessage());
+
+		JSONObject countsJSONObject = jsonObject.getJSONObject("counts");
+
+		Assert.assertEquals(
+			countsJSONObject.toString(), 0,
+			countsJSONObject.getLong("journal-articles"));
+		Assert.assertEquals(
+			countsJSONObject.toString(), 3,
+			countsJSONObject.getLong("unchanged-entries"));
+
+		AssetEntry assetEntry = _assetEntryLocalService.getEntry(
+			BlogsEntry.class.getName(), blogsEntry.getEntryId());
+
+		assetEntry.setPriority(2.5);
+
+		_assetEntryLocalService.updateAssetEntry(assetEntry);
+
+		_objectEntryLocalService.moveObjectEntryToTrash(
+			TestPropsValues.getUserId(), _getObjectEntry(fileEntry),
+			ServiceContextTestUtil.getServiceContext(_depotEntry.getGroupId()));
+
+		JournalTestUtil.updateArticle(journalArticle);
+
+		backgroundTaskResult = _execute(
+			_group.getGroupId(), false, false, true);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		jsonObject = JSONFactoryUtil.createJSONObject(
+			backgroundTaskResult.getStatusMessage());
+
+		countsJSONObject = jsonObject.getJSONObject("counts");
+
+		Assert.assertEquals(
+			countsJSONObject.toString(), 1,
+			countsJSONObject.getLong("blogs-entries"));
+		Assert.assertEquals(
+			countsJSONObject.toString(), 1,
+			countsJSONObject.getLong("file-entries"));
+		Assert.assertEquals(
+			countsJSONObject.toString(), 1,
+			countsJSONObject.getLong("journal-articles"));
+		Assert.assertEquals(
+			countsJSONObject.toString(), 0,
+			countsJSONObject.getLong("unchanged-entries"));
+
+		ObjectEntry objectEntry = _getObjectEntry(fileEntry);
+
+		Assert.assertFalse(objectEntry.isInTrash());
+
+		backgroundTaskResult = _execute(_group.getGroupId(), false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		jsonObject = JSONFactoryUtil.createJSONObject(
+			backgroundTaskResult.getStatusMessage());
+
+		countsJSONObject = jsonObject.getJSONObject("counts");
+
+		Assert.assertEquals(
+			countsJSONObject.toString(), 1,
+			countsJSONObject.getLong("file-entries"));
+		Assert.assertEquals(
+			countsJSONObject.toString(), 0,
+			countsJSONObject.getLong("unchanged-entries"));
+	}
+
+	@Test
+	public void testExecuteWithUnrestorableTrashedEntry() throws Exception {
+		JournalArticle journalArticle = JournalTestUtil.addArticle(
+			_group.getGroupId(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		objectEntry.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+
+		_objectEntryLocalService.updateObjectEntry(objectEntry);
+
+		String title = RandomTestUtil.randomString();
+
+		JournalTestUtil.updateArticle(journalArticle, title);
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				"in the recycle bin because it could not be restored"));
+
+		objectEntry = _getObjectEntry(journalArticle);
+
+		Assert.assertTrue(objectEntry.isInTrash());
+
+		_assertTitle(title, objectEntry);
+	}
+
+	@Test
 	public void testExecuteWithUntranslatedDDMStructureName() throws Exception {
 		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
 			_group.getGroupId(), JournalArticle.class.getName());
@@ -4185,6 +4311,15 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 		throws Exception {
 
 		return _execute(
+			sourceGroupId, migrateRepeatableFields, rewritePages, false);
+	}
+
+	private BackgroundTaskResult _execute(
+			long sourceGroupId, boolean migrateRepeatableFields,
+			boolean rewritePages, boolean skipUnchangedEntries)
+		throws Exception {
+
+		return _execute(
 			HashMapBuilder.<String, Serializable>put(
 				"depotEntryId", _depotEntry.getDepotEntryId()
 			).put(
@@ -4197,6 +4332,8 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 				"migrateRepeatableFields", migrateRepeatableFields
 			).put(
 				"rewritePages", rewritePages
+			).put(
+				"skipUnchangedEntries", skipUnchangedEntries
 			).put(
 				"sourceGroupId", sourceGroupId
 			).build());
