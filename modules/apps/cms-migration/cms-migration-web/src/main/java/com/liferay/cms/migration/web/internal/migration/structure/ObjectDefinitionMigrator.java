@@ -39,13 +39,20 @@ import com.liferay.object.model.ObjectField;
 import com.liferay.object.model.ObjectFieldSetting;
 import com.liferay.object.model.ObjectFolder;
 import com.liferay.object.model.ObjectRelationship;
+import com.liferay.object.petra.sql.dsl.DynamicObjectDefinitionTable;
+import com.liferay.object.petra.sql.dsl.DynamicObjectDefinitionTableUtil;
 import com.liferay.object.service.ObjectDefinitionLocalService;
 import com.liferay.object.service.ObjectDefinitionSettingLocalService;
+import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.object.service.ObjectFieldLocalService;
 import com.liferay.object.service.ObjectFieldSettingLocalService;
 import com.liferay.object.service.ObjectFolderLocalService;
 import com.liferay.object.service.ObjectRelationshipLocalService;
 import com.liferay.object.tree.constants.TreeConstants;
+import com.liferay.petra.sql.dsl.Column;
+import com.liferay.petra.sql.dsl.DSLFunctionFactoryUtil;
+import com.liferay.petra.sql.dsl.DSLQueryFactoryUtil;
+import com.liferay.petra.sql.dsl.expression.Expression;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
@@ -56,6 +63,8 @@ import com.liferay.portal.kernel.util.LocaleUtil;
 import com.liferay.portal.kernel.util.StringUtil;
 import com.liferay.portal.kernel.util.Validator;
 
+import java.sql.Clob;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -63,6 +72,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -84,6 +94,7 @@ public class ObjectDefinitionMigrator {
 		ListTypeEntryLocalService listTypeEntryLocalService,
 		ObjectDefinitionLocalService objectDefinitionLocalService,
 		ObjectDefinitionSettingLocalService objectDefinitionSettingLocalService,
+		ObjectEntryLocalService objectEntryLocalService,
 		ObjectFieldLocalService objectFieldLocalService,
 		ObjectFieldSettingLocalService objectFieldSettingLocalService,
 		ObjectFolderLocalService objectFolderLocalService,
@@ -97,6 +108,7 @@ public class ObjectDefinitionMigrator {
 		_objectDefinitionLocalService = objectDefinitionLocalService;
 		_objectDefinitionSettingLocalService =
 			objectDefinitionSettingLocalService;
+		_objectEntryLocalService = objectEntryLocalService;
 		_objectFieldLocalService = objectFieldLocalService;
 		_objectFieldSettingLocalService = objectFieldSettingLocalService;
 		_objectFolderLocalService = objectFolderLocalService;
@@ -139,6 +151,60 @@ public class ObjectDefinitionMigrator {
 					ObjectFieldConstants.BUSINESS_TYPE_TEXT,
 					_getLabelMap("title"), true,
 					CMSMigrationConstants.OBJECT_FIELD_NAME_TITLE, true)));
+	}
+
+	public void deleteUnusedLeftoverJSONObjectFields(
+		CMSMigrationContext cmsMigrationContext) {
+
+		Map<ObjectField, String> leftoverJSONObjectFields =
+			cmsMigrationContext.getLeftoverJSONObjectFields();
+
+		for (Map.Entry<ObjectField, String> entry :
+				leftoverJSONObjectFields.entrySet()) {
+
+			ObjectField objectField = entry.getKey();
+
+			String prefix = StringBundler.concat(
+				"Migrated ", entry.getValue(), " as a repeatable group and ");
+
+			try {
+				if (_getObjectEntriesWithValueCount(objectField) > 0) {
+					cmsMigrationContext.getCMSMigrationReport(
+					).addWarning(
+						StringBundler.concat(
+							prefix, "kept the JSON field ",
+							objectField.getName(),
+							" that a previous migration added because some ",
+							"entries still have a value in it")
+					);
+
+					continue;
+				}
+
+				_objectFieldLocalService.deleteObjectField(
+					objectField.getObjectFieldId());
+
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						prefix, "removed the JSON field ",
+						objectField.getName(),
+						" that a previous migration added because no entry ",
+						"has a value in it anymore")
+				);
+			}
+			catch (Exception exception) {
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						prefix, "kept the JSON field ", objectField.getName(),
+						" that a previous migration added because it could ",
+						"not be removed: ", exception.getMessage())
+				);
+			}
+		}
+
+		cmsMigrationContext.clearLeftoverJSONObjectFields();
 	}
 
 	public ObjectDefinition getExternalVideoObjectDefinition(
@@ -371,16 +437,12 @@ public class ObjectDefinitionMigrator {
 				CMSMigrationDDMFormFieldUtil.getObjectFieldName(ddmFormField));
 
 			if (objectField != null) {
-				cmsMigrationContext.getCMSMigrationReport(
-				).addWarning(
+				cmsMigrationContext.addLeftoverJSONObjectField(
+					objectField,
 					StringBundler.concat(
-						"Migrated the repeatable field ",
+						"the repeatable field ",
 						ddmFormField.getFieldReference(), " of the structure ",
-						ddmStructure.getStructureKey(),
-						" as a repeatable group and kept the JSON field ",
-						objectField.getName(),
-						" that a previous migration added")
-				);
+						ddmStructure.getStructureKey()));
 			}
 
 			List<DDMFormField> nestedRepeatableGroupDDMFormFields =
@@ -671,6 +733,37 @@ public class ObjectDefinitionMigrator {
 				Boolean.TRUE.toString()),
 			_createObjectDefinitionSetting(
 				ObjectDefinitionSettingConstants.NAME_DOMAIN, "space"));
+	}
+
+	private long _getObjectEntriesWithValueCount(ObjectField objectField)
+		throws PortalException {
+
+		ObjectDefinition objectDefinition =
+			_objectDefinitionLocalService.getObjectDefinition(
+				objectField.getObjectDefinitionId());
+
+		DynamicObjectDefinitionTable dynamicObjectDefinitionTable =
+			DynamicObjectDefinitionTableUtil.getDynamicObjectDefinitionTable(
+				Objects.equals(
+					objectField.getDBTableName(),
+					objectDefinition.getExtensionDBTableName()),
+				objectDefinition, _objectFieldLocalService);
+
+		Column<DynamicObjectDefinitionTable, ?> column =
+			dynamicObjectDefinitionTable.getColumn(
+				objectField.getDBColumnName());
+
+		return _objectEntryLocalService.dslQueryCount(
+			DSLQueryFactoryUtil.count(
+			).from(
+				dynamicObjectDefinitionTable
+			).where(
+				DSLFunctionFactoryUtil.castClobText(
+					(Expression<Clob>)column
+				).like(
+					"_%"
+				)
+			));
 	}
 
 	private ListTypeDefinition _getOrAddListTypeDefinition(
@@ -1119,6 +1212,7 @@ public class ObjectDefinitionMigrator {
 	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
 	private final ObjectDefinitionSettingLocalService
 		_objectDefinitionSettingLocalService;
+	private final ObjectEntryLocalService _objectEntryLocalService;
 	private final ObjectFieldLocalService _objectFieldLocalService;
 	private final ObjectFieldSettingLocalService
 		_objectFieldSettingLocalService;

@@ -283,9 +283,9 @@ public class CMSMigrationBackgroundTaskExecutor
 				_ddmStructureLocalService, _ddmStructureVersionLocalService,
 				_language, _listTypeDefinitionLocalService,
 				_listTypeEntryLocalService, _objectDefinitionLocalService,
-				_objectDefinitionSettingLocalService, _objectFieldLocalService,
-				_objectFieldSettingLocalService, _objectFolderLocalService,
-				_objectRelationshipLocalService);
+				_objectDefinitionSettingLocalService, _objectEntryLocalService,
+				_objectFieldLocalService, _objectFieldSettingLocalService,
+				_objectFolderLocalService, _objectRelationshipLocalService);
 
 		ResourcePermissionMigrator resourcePermissionMigrator =
 			new ResourcePermissionMigrator(
