@@ -292,7 +292,16 @@ public class JournalArticleMigrator {
 		DDMFormValues ddmFormValues = journalArticle.getDDMFormValues();
 
 		if (ddmFormValues == null) {
-			return null;
+			DDMStructure ddmStructure = journalArticle.getDDMStructure();
+
+			ddmFormValues = new DDMFormValues(
+				ddmStructure.getFullHierarchyDDMForm());
+
+			ddmFormValues.setDefaultLocale(
+				LocaleUtil.fromLanguageId(
+					journalArticle.getDefaultLanguageId()));
+
+			return ddmFormValues;
 		}
 
 		List<String> unavailableLanguageIds = new ArrayList<>();

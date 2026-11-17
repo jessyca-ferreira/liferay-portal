@@ -11,6 +11,7 @@ import com.liferay.dynamic.data.mapping.model.DDMFormField;
 import com.liferay.dynamic.data.mapping.model.DDMStructure;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectField;
 import com.liferay.object.model.ObjectRelationship;
 import com.liferay.petra.function.UnsafeFunction;
 import com.liferay.petra.string.StringBundler;
@@ -95,6 +96,13 @@ public class CMSMigrationContext {
 			layoutPageTemplateEntryId, newLayoutPageTemplateEntryId);
 	}
 
+	public void addLeftoverJSONObjectField(
+		ObjectField objectField, String repeatableFieldDescription) {
+
+		_leftoverJSONObjectFieldDescriptions.put(
+			objectField, repeatableFieldDescription);
+	}
+
 	public void addObjectDefinition(
 		String className, long classTypeId, ObjectDefinition objectDefinition) {
 
@@ -131,6 +139,10 @@ public class CMSMigrationContext {
 
 		_templateEntryIds.put(
 			_getKey(ddmTemplateKey, ddmStructureId), templateEntryId);
+	}
+
+	public void clearLeftoverJSONObjectFieldDescriptions() {
+		_leftoverJSONObjectFieldDescriptions.clear();
 	}
 
 	public ReferenceScope getAssetListEntryReferenceScope(
@@ -170,6 +182,10 @@ public class CMSMigrationContext {
 	public long getLayoutPageTemplateEntryId(long layoutPageTemplateEntryId) {
 		return _layoutPageTemplateEntryIds.getOrDefault(
 			layoutPageTemplateEntryId, 0L);
+	}
+
+	public Map<ObjectField, String> getLeftoverJSONObjectFieldDescriptions() {
+		return _leftoverJSONObjectFieldDescriptions;
 	}
 
 	public ObjectDefinition getObjectDefinition(
@@ -317,6 +333,8 @@ public class CMSMigrationContext {
 	private final Map<Long, Long> _informationTemplateEntryIds =
 		new HashMap<>();
 	private final Map<Long, Long> _layoutPageTemplateEntryIds = new HashMap<>();
+	private final Map<ObjectField, String>
+		_leftoverJSONObjectFieldDescriptions = new LinkedHashMap<>();
 	private final boolean _migrateBlogsEntries;
 	private final boolean _migrateFileEntries;
 	private final boolean _migrateJournalArticles;

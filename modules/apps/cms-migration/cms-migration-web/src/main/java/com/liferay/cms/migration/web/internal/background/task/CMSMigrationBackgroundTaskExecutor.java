@@ -283,9 +283,9 @@ public class CMSMigrationBackgroundTaskExecutor
 				_ddmStructureLocalService, _ddmStructureVersionLocalService,
 				_language, _listTypeDefinitionLocalService,
 				_listTypeEntryLocalService, _objectDefinitionLocalService,
-				_objectDefinitionSettingLocalService, _objectFieldLocalService,
-				_objectFieldSettingLocalService, _objectFolderLocalService,
-				_objectRelationshipLocalService);
+				_objectDefinitionSettingLocalService, _objectEntryLocalService,
+				_objectFieldLocalService, _objectFieldSettingLocalService,
+				_objectFolderLocalService, _objectRelationshipLocalService);
 
 		ResourcePermissionMigrator resourcePermissionMigrator =
 			new ResourcePermissionMigrator(
@@ -400,9 +400,10 @@ public class CMSMigrationBackgroundTaskExecutor
 			htmlReferenceRewriter, journalArticleMigrator,
 			journalTemplateMigrator, _layoutLocalService,
 			layoutReferenceRewriter, _objectDefinitionLocalService,
-			_objectEntryLocalService, objectEntryScopeMigrator,
-			_objectFieldLocalService, portletReferenceRewriter,
-			siteNavigationMenuItemReferenceRewriter, widgetTemplateMigrator);
+			objectDefinitionMigrator, _objectEntryLocalService,
+			objectEntryScopeMigrator, _objectFieldLocalService,
+			portletReferenceRewriter, siteNavigationMenuItemReferenceRewriter,
+			widgetTemplateMigrator);
 	}
 
 	@Reference

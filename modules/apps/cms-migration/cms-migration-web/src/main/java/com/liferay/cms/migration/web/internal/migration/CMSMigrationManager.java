@@ -18,6 +18,7 @@ import com.liferay.cms.migration.web.internal.migration.reference.HTMLReferenceR
 import com.liferay.cms.migration.web.internal.migration.reference.LayoutReferenceRewriter;
 import com.liferay.cms.migration.web.internal.migration.reference.PortletReferenceRewriter;
 import com.liferay.cms.migration.web.internal.migration.reference.SiteNavigationMenuItemReferenceRewriter;
+import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.DisplayPageTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.JournalTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.WidgetTemplateMigrator;
@@ -73,6 +74,7 @@ public class CMSMigrationManager {
 		LayoutLocalService layoutLocalService,
 		LayoutReferenceRewriter layoutReferenceRewriter,
 		ObjectDefinitionLocalService objectDefinitionLocalService,
+		ObjectDefinitionMigrator objectDefinitionMigrator,
 		ObjectEntryLocalService objectEntryLocalService,
 		ObjectEntryScopeMigrator objectEntryScopeMigrator,
 		ObjectFieldLocalService objectFieldLocalService,
@@ -97,6 +99,7 @@ public class CMSMigrationManager {
 		_layoutLocalService = layoutLocalService;
 		_layoutReferenceRewriter = layoutReferenceRewriter;
 		_objectDefinitionLocalService = objectDefinitionLocalService;
+		_objectDefinitionMigrator = objectDefinitionMigrator;
 		_objectEntryLocalService = objectEntryLocalService;
 		_objectEntryScopeMigrator = objectEntryScopeMigrator;
 		_objectFieldLocalService = objectFieldLocalService;
@@ -107,6 +110,60 @@ public class CMSMigrationManager {
 	}
 
 	public void migrate(CMSMigrationContext cmsMigrationContext)
+		throws Exception {
+
+		_migrate(cmsMigrationContext);
+
+		_objectDefinitionMigrator.deleteUnusedLeftoverJSONObjectFields(
+			cmsMigrationContext);
+	}
+
+	private List<Layout> _getLayouts(long groupId) {
+		DynamicQuery dynamicQuery = _layoutLocalService.dynamicQuery();
+
+		dynamicQuery.add(RestrictionsFactoryUtil.eq("groupId", groupId));
+
+		return _layoutLocalService.dynamicQuery(dynamicQuery);
+	}
+
+	/**
+	 * Returns every group, other than the source group and the target space,
+	 * that has pages. Their pages may reference the content of the Global
+	 * site.
+	 */
+	private List<Group> _getReferencingGroups(
+		CMSMigrationContext cmsMigrationContext) {
+
+		DynamicQuery dynamicQuery = _layoutLocalService.dynamicQuery();
+
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.eq(
+				"companyId", cmsMigrationContext.getCompanyId()));
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.ne(
+				"groupId", cmsMigrationContext.getSourceGroupId()));
+		dynamicQuery.add(
+			RestrictionsFactoryUtil.ne(
+				"groupId", cmsMigrationContext.getDepotGroupId()));
+		dynamicQuery.addOrder(OrderFactoryUtil.asc("groupId"));
+		dynamicQuery.setProjection(
+			ProjectionFactoryUtil.distinct(
+				ProjectionFactoryUtil.property("groupId")));
+
+		List<Group> groups = new ArrayList<>();
+
+		for (Object groupId : _layoutLocalService.dynamicQuery(dynamicQuery)) {
+			Group group = _groupLocalService.fetchGroup((Long)groupId);
+
+			if ((group != null) && !group.isDepot()) {
+				groups.add(group);
+			}
+		}
+
+		return groups;
+	}
+
+	private void _migrate(CMSMigrationContext cmsMigrationContext)
 		throws Exception {
 
 		_depotEntryGroupRelLocalService.addDepotEntryGroupRel(
@@ -228,51 +285,6 @@ public class CMSMigrationManager {
 		}
 
 		_widgetTemplateMigrator.migrate(cmsMigrationContext);
-	}
-
-	private List<Layout> _getLayouts(long groupId) {
-		DynamicQuery dynamicQuery = _layoutLocalService.dynamicQuery();
-
-		dynamicQuery.add(RestrictionsFactoryUtil.eq("groupId", groupId));
-
-		return _layoutLocalService.dynamicQuery(dynamicQuery);
-	}
-
-	/**
-	 * Returns every group, other than the source group and the target space,
-	 * that has pages. Their pages may reference the content of the Global
-	 * site.
-	 */
-	private List<Group> _getReferencingGroups(
-		CMSMigrationContext cmsMigrationContext) {
-
-		DynamicQuery dynamicQuery = _layoutLocalService.dynamicQuery();
-
-		dynamicQuery.add(
-			RestrictionsFactoryUtil.eq(
-				"companyId", cmsMigrationContext.getCompanyId()));
-		dynamicQuery.add(
-			RestrictionsFactoryUtil.ne(
-				"groupId", cmsMigrationContext.getSourceGroupId()));
-		dynamicQuery.add(
-			RestrictionsFactoryUtil.ne(
-				"groupId", cmsMigrationContext.getDepotGroupId()));
-		dynamicQuery.addOrder(OrderFactoryUtil.asc("groupId"));
-		dynamicQuery.setProjection(
-			ProjectionFactoryUtil.distinct(
-				ProjectionFactoryUtil.property("groupId")));
-
-		List<Group> groups = new ArrayList<>();
-
-		for (Object groupId : _layoutLocalService.dynamicQuery(dynamicQuery)) {
-			Group group = _groupLocalService.fetchGroup((Long)groupId);
-
-			if ((group != null) && !group.isDepot()) {
-				groups.add(group);
-			}
-		}
-
-		return groups;
 	}
 
 	private void _rewriteContentLinks(CMSMigrationContext cmsMigrationContext) {
@@ -434,6 +446,7 @@ public class CMSMigrationManager {
 	private final LayoutLocalService _layoutLocalService;
 	private final LayoutReferenceRewriter _layoutReferenceRewriter;
 	private final ObjectDefinitionLocalService _objectDefinitionLocalService;
+	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
 	private final ObjectEntryLocalService _objectEntryLocalService;
 	private final ObjectEntryScopeMigrator _objectEntryScopeMigrator;
 	private final ObjectFieldLocalService _objectFieldLocalService;
