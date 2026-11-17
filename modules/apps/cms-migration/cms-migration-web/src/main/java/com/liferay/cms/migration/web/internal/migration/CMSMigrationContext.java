@@ -42,9 +42,9 @@ public class CMSMigrationContext {
 		boolean migrateFileEntries, boolean migrateJournalArticles,
 		boolean migrateObjectEntries, boolean migrateRepeatableFields,
 		CMSMigrationReport cmsMigrationReport, boolean rewritePages,
-		ServiceContext serviceContext, Group sourceGroup,
-		Consumer<String> statusConsumer, String[] titleObjectFieldNames,
-		long userId) {
+		ServiceContext serviceContext, boolean skipUnchangedEntries,
+		Group sourceGroup, Consumer<String> statusConsumer,
+		String[] titleObjectFieldNames, long userId) {
 
 		_depotEntry = depotEntry;
 		_depotGroup = depotGroup;
@@ -56,6 +56,7 @@ public class CMSMigrationContext {
 		_cmsMigrationReport = cmsMigrationReport;
 		_rewritePages = rewritePages;
 		_serviceContext = serviceContext;
+		_skipUnchangedEntries = skipUnchangedEntries;
 		_sourceGroup = sourceGroup;
 		_statusConsumer = statusConsumer;
 		_titleObjectFieldNames = titleObjectFieldNames;
@@ -281,6 +282,10 @@ public class CMSMigrationContext {
 		return false;
 	}
 
+	public boolean isSkipUnchangedEntries() {
+		return _skipUnchangedEntries;
+	}
+
 	public void sendStatus(String itemTitle) {
 		_statusConsumer.accept(itemTitle);
 	}
@@ -326,6 +331,7 @@ public class CMSMigrationContext {
 	private Group _rewriteGroup;
 	private final boolean _rewritePages;
 	private final ServiceContext _serviceContext;
+	private final boolean _skipUnchangedEntries;
 	private final Group _sourceGroup;
 	private final Consumer<String> _statusConsumer;
 	private final Set<Long> _templateDDMStructureIds = new HashSet<>();

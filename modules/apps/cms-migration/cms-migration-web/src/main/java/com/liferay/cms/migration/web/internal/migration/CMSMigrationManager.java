@@ -359,6 +359,11 @@ public class CMSMigrationManager {
 				cmsMigrationContext.getUserId(), objectEntry.getObjectEntryId(),
 				objectEntry.getObjectEntryFolderId(), values, serviceContext);
 
+		updatedObjectEntry.setModifiedDate(objectEntry.getModifiedDate());
+
+		updatedObjectEntry = _objectEntryLocalService.updateObjectEntry(
+			updatedObjectEntry);
+
 		for (Map.Entry<String, ObjectEntry> entry :
 				cmsMigrationContext.getObjectEntriesMap(
 				).entrySet()) {

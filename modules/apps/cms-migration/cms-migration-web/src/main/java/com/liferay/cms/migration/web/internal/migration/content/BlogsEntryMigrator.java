@@ -95,6 +95,27 @@ public class BlogsEntryMigrator {
 		String externalReferenceCode =
 			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_BLOGS_ENTRY +
 				blogsEntry.getEntryId();
+
+		objectEntry = _objectEntryWriter.fetchRestoredObjectEntry(
+			cmsMigrationContext, externalReferenceCode, objectDefinition);
+
+		long objectEntryFolderId = cmsMigrationContext.getObjectEntryFolderId(
+			JournalFolder.class.getName(),
+			JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+
+		if (cmsMigrationContext.isSkipUnchangedEntries() &&
+			_objectEntryWriter.isUnchangedObjectEntry(
+				blogsEntry.isApproved(), BlogsEntry.class.getName(),
+				blogsEntry.getEntryId(), blogsEntry.getModifiedDate(),
+				objectDefinition, objectEntry, objectEntryFolderId)) {
+
+			_objectEntryWriter.registerUnchangedObjectEntry(
+				BlogsEntry.class.getName(), blogsEntry.getEntryId(),
+				cmsMigrationContext, objectEntry);
+
+			return objectEntry;
+		}
+
 		String languageId = LocaleUtil.toLanguageId(
 			LocaleUtil.getSiteDefault());
 
@@ -157,10 +178,7 @@ public class BlogsEntryMigrator {
 
 		objectEntry = _objectEntryWriter.write(
 			cmsMigrationContext, BlogsEntry.class.getName(),
-			blogsEntry.getEntryId(), objectDefinition,
-			cmsMigrationContext.getObjectEntryFolderId(
-				JournalFolder.class.getName(),
-				JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID),
+			blogsEntry.getEntryId(), objectDefinition, objectEntryFolderId,
 			externalReferenceCode, blogsEntry.getUserId(), languageId, values,
 			HashMapBuilder.put(
 				languageId, blogsEntry.getUrlTitle()

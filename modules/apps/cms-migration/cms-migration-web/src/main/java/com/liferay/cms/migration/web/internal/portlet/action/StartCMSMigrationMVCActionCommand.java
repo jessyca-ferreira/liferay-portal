@@ -101,6 +101,9 @@ public class StartCMSMigrationMVCActionCommand extends BaseMVCActionCommand {
 					"rewritePages",
 					ParamUtil.getBoolean(actionRequest, "rewritePages")
 				).put(
+					"skipUnchangedEntries",
+					ParamUtil.getBoolean(actionRequest, "skipUnchangedEntries")
+				).put(
 					"sourceGroupId", sourceGroup.getGroupId()
 				).put(
 					"titleObjectFieldNames",

@@ -197,7 +197,10 @@ public class CMSMigrationBackgroundTaskExecutor
 						taskContextMap.get("migrateRepeatableFields")),
 					cmsMigrationReport,
 					GetterUtil.getBoolean(taskContextMap.get("rewritePages")),
-					serviceContext, sourceGroup,
+					serviceContext,
+					GetterUtil.getBoolean(
+						taskContextMap.get("skipUnchangedEntries")),
+					sourceGroup,
 					cmsMigrationBackgroundTaskStatusMessageSender::
 						sendItemStatusMessage,
 					StringUtil.split(
@@ -349,7 +352,8 @@ public class CMSMigrationBackgroundTaskExecutor
 				attachmentCopier, _ddmFieldLocalService, ddmFormValuesConverter,
 				_journalArticleLocalService,
 				_journalArticleResourceLocalService, _jsonFactory, _language,
-				objectDefinitionMigrator, objectEntryWriter);
+				objectDefinitionMigrator, _objectEntryLocalService,
+				objectEntryWriter);
 
 		ObjectEntryScopeMigrator objectEntryScopeMigrator =
 			new ObjectEntryScopeMigrator(
