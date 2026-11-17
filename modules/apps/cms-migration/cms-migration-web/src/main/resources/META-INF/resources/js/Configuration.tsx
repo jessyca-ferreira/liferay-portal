@@ -52,6 +52,11 @@ const CONTENT_TYPES = [
 		label: Liferay.Language.get('cms-migration-repeatable-fields'),
 		name: 'migrateRepeatableFields',
 	},
+	{
+		help: Liferay.Language.get('cms-migration-skip-unchanged-entries-help'),
+		label: Liferay.Language.get('cms-migration-skip-unchanged-entries'),
+		name: 'skipUnchangedEntries',
+	},
 ];
 
 const CREATE_NEW_SPACE = '0';

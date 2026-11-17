@@ -113,26 +113,66 @@ public class FileEntryMigrator {
 			return objectEntry;
 		}
 
-		FileVersion fileVersion = fileEntry.getFileVersion();
-
-		if (Objects.equals(
-				fileEntry.getMimeType(),
-				ContentTypes.
-					APPLICATION_VND_LIFERAY_VIDEO_EXTERNAL_SHORTCUT_HTML)) {
-
-			return _migrateExternalVideo(
-				cmsMigrationContext, fileEntry, fileVersion);
-		}
-
 		DLFileEntry dlFileEntry = (DLFileEntry)fileEntry.getModel();
 
 		DLFileEntryType dlFileEntryType =
 			_dlFileEntryTypeLocalService.fetchDLFileEntryType(
 				dlFileEntry.getFileEntryTypeId());
 
-		ObjectDefinition objectDefinition =
-			_objectDefinitionMigrator.getOrAddDLFileEntryTypeObjectDefinition(
-				cmsMigrationContext, dlFileEntryType);
+		boolean externalVideo = Objects.equals(
+			fileEntry.getMimeType(),
+			ContentTypes.APPLICATION_VND_LIFERAY_VIDEO_EXTERNAL_SHORTCUT_HTML);
+
+		ObjectDefinition objectDefinition = null;
+
+		if (externalVideo) {
+			objectDefinition =
+				_objectDefinitionMigrator.getExternalVideoObjectDefinition(
+					cmsMigrationContext);
+		}
+		else {
+			objectDefinition =
+				_objectDefinitionMigrator.
+					getOrAddDLFileEntryTypeObjectDefinition(
+						cmsMigrationContext, dlFileEntryType);
+		}
+
+		String externalReferenceCode =
+			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_FILE_ENTRY +
+				fileEntry.getFileEntryId();
+
+		objectEntry = _objectEntryWriter.fetchRestoredObjectEntry(
+			cmsMigrationContext, externalReferenceCode, objectDefinition);
+
+		long objectEntryFolderId = _getObjectEntryFolderId(
+			cmsMigrationContext, fileEntry);
+
+		FileVersion fileVersion = fileEntry.getFileVersion();
+
+		boolean approved = false;
+
+		if (fileVersion.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+			approved = true;
+		}
+
+		if (_objectEntryWriter.isUnchangedObjectEntry(
+				approved, DLFileEntry.class.getName(),
+				fileEntry.getFileEntryId(), cmsMigrationContext,
+				fileEntry.getModifiedDate(), objectDefinition, objectEntry,
+				objectEntryFolderId)) {
+
+			_objectEntryWriter.registerUnchangedObjectEntry(
+				DLFileEntry.class.getName(), fileEntry.getFileEntryId(),
+				cmsMigrationContext, objectEntry);
+
+			return objectEntry;
+		}
+
+		if (externalVideo) {
+			return _migrateExternalVideo(
+				approved, cmsMigrationContext, externalReferenceCode, fileEntry,
+				fileVersion, objectDefinition, objectEntryFolderId);
+		}
 
 		Map<String, Serializable> values = _getValues(
 			cmsMigrationContext, fileEntry, fileVersion);
@@ -183,15 +223,11 @@ public class FileEntryMigrator {
 
 		objectEntry = _objectEntryWriter.write(
 			cmsMigrationContext, DLFileEntry.class.getName(),
-			fileEntry.getFileEntryId(), objectDefinition,
-			_getObjectEntryFolderId(cmsMigrationContext, fileEntry),
-			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_FILE_ENTRY +
-				fileEntry.getFileEntryId(),
-			fileEntry.getUserId(),
+			fileEntry.getFileEntryId(), objectDefinition, objectEntryFolderId,
+			externalReferenceCode, fileEntry.getUserId(),
 			LocaleUtil.toLanguageId(LocaleUtil.getSiteDefault()), values,
 			_getFriendlyURLMap(fileEntry), fileEntry.getCreateDate(),
-			fileEntry.getModifiedDate(),
-			fileVersion.getStatus() == WorkflowConstants.STATUS_APPROVED);
+			fileEntry.getModifiedDate(), approved);
 
 		cmsMigrationContext.getCMSMigrationReport(
 		).increment(
@@ -344,8 +380,10 @@ public class FileEntryMigrator {
 	}
 
 	private ObjectEntry _migrateExternalVideo(
-			CMSMigrationContext cmsMigrationContext, FileEntry fileEntry,
-			FileVersion fileVersion)
+			boolean approved, CMSMigrationContext cmsMigrationContext,
+			String externalReferenceCode, FileEntry fileEntry,
+			FileVersion fileVersion, ObjectDefinition objectDefinition,
+			long objectEntryFolderId)
 		throws PortalException {
 
 		DLVideoExternalShortcut dlVideoExternalShortcut =
@@ -375,16 +413,10 @@ public class FileEntryMigrator {
 
 		ObjectEntry objectEntry = _objectEntryWriter.write(
 			cmsMigrationContext, DLFileEntry.class.getName(),
-			fileEntry.getFileEntryId(),
-			_objectDefinitionMigrator.getExternalVideoObjectDefinition(
-				cmsMigrationContext),
-			_getObjectEntryFolderId(cmsMigrationContext, fileEntry),
-			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_FILE_ENTRY +
-				fileEntry.getFileEntryId(),
-			fileEntry.getUserId(), languageId, values,
+			fileEntry.getFileEntryId(), objectDefinition, objectEntryFolderId,
+			externalReferenceCode, fileEntry.getUserId(), languageId, values,
 			_getFriendlyURLMap(fileEntry), fileEntry.getCreateDate(),
-			fileEntry.getModifiedDate(),
-			fileVersion.getStatus() == WorkflowConstants.STATUS_APPROVED);
+			fileEntry.getModifiedDate(), approved);
 
 		cmsMigrationContext.getCMSMigrationReport(
 		).increment(

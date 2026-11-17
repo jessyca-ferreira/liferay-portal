@@ -12,10 +12,13 @@ import com.liferay.cms.migration.web.internal.migration.entry.DDMFormValuesConve
 import com.liferay.cms.migration.web.internal.migration.entry.LocalizedValuesUtil;
 import com.liferay.cms.migration.web.internal.migration.entry.ObjectEntryValues;
 import com.liferay.cms.migration.web.internal.migration.entry.ObjectEntryWriter;
+import com.liferay.cms.migration.web.internal.migration.structure.CMSMigrationDDMFormFieldUtil;
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
 import com.liferay.dynamic.data.mapping.model.DDMFieldAttributeTable;
 import com.liferay.dynamic.data.mapping.model.DDMFieldTable;
+import com.liferay.dynamic.data.mapping.model.DDMForm;
 import com.liferay.dynamic.data.mapping.model.DDMFormField;
+import com.liferay.dynamic.data.mapping.model.DDMStructure;
 import com.liferay.dynamic.data.mapping.model.Value;
 import com.liferay.dynamic.data.mapping.service.DDMFieldLocalService;
 import com.liferay.dynamic.data.mapping.storage.DDMFormFieldValue;
@@ -29,12 +32,15 @@ import com.liferay.journal.service.JournalArticleLocalService;
 import com.liferay.journal.service.JournalArticleResourceLocalService;
 import com.liferay.object.model.ObjectDefinition;
 import com.liferay.object.model.ObjectEntry;
+import com.liferay.object.model.ObjectRelationship;
+import com.liferay.object.service.ObjectEntryLocalService;
 import com.liferay.petra.sql.dsl.DSLQueryFactoryUtil;
 import com.liferay.petra.string.StringBundler;
 import com.liferay.petra.string.StringPool;
 import com.liferay.portal.kernel.exception.PortalException;
 import com.liferay.portal.kernel.json.JSONFactory;
 import com.liferay.portal.kernel.json.JSONObject;
+import com.liferay.portal.kernel.json.JSONUtil;
 import com.liferay.portal.kernel.language.Language;
 import com.liferay.portal.kernel.util.GetterUtil;
 import com.liferay.portal.kernel.util.HtmlParserUtil;
@@ -68,6 +74,7 @@ public class JournalArticleMigrator {
 		JournalArticleResourceLocalService journalArticleResourceLocalService,
 		JSONFactory jsonFactory, Language language,
 		ObjectDefinitionMigrator objectDefinitionMigrator,
+		ObjectEntryLocalService objectEntryLocalService,
 		ObjectEntryWriter objectEntryWriter) {
 
 		_attachmentCopier = attachmentCopier;
@@ -79,6 +86,7 @@ public class JournalArticleMigrator {
 		_jsonFactory = jsonFactory;
 		_language = language;
 		_objectDefinitionMigrator = objectDefinitionMigrator;
+		_objectEntryLocalService = objectEntryLocalService;
 		_objectEntryWriter = objectEntryWriter;
 	}
 
@@ -120,14 +128,38 @@ public class JournalArticleMigrator {
 			return null;
 		}
 
+		DDMStructure ddmStructure = journalArticle.getDDMStructure();
+
 		ObjectDefinition objectDefinition =
 			_objectDefinitionMigrator.getOrAddDDMStructureObjectDefinition(
-				cmsMigrationContext, journalArticle.getDDMStructure());
+				cmsMigrationContext, ddmStructure);
 
 		String externalReferenceCode =
 			CMSMigrationConstants.
 				EXTERNAL_REFERENCE_CODE_PREFIX_JOURNAL_ARTICLE +
 					resourcePrimKey;
+
+		objectEntry = _objectEntryWriter.fetchRestoredObjectEntry(
+			cmsMigrationContext, externalReferenceCode, objectDefinition);
+
+		long objectEntryFolderId = _getObjectEntryFolderId(
+			cmsMigrationContext, journalArticle);
+
+		Date modifiedDate = journalArticle.getModifiedDate();
+
+		if (_objectEntryWriter.isUnchangedObjectEntry(
+				approved, JournalArticle.class.getName(), resourcePrimKey,
+				cmsMigrationContext, modifiedDate, objectDefinition,
+				objectEntry, objectEntryFolderId) &&
+			_isRepeatableFieldsFormUnchanged(
+				cmsMigrationContext, ddmStructure, objectEntry)) {
+
+			_objectEntryWriter.registerUnchangedObjectEntry(
+				JournalArticle.class.getName(), resourcePrimKey,
+				cmsMigrationContext, objectEntry);
+
+			return objectEntry;
+		}
 
 		ObjectEntryValues objectEntryValues =
 			_ddmFormValuesConverter.getObjectEntryValues(
@@ -171,17 +203,26 @@ public class JournalArticleMigrator {
 
 		objectEntry = _objectEntryWriter.write(
 			cmsMigrationContext, JournalArticle.class.getName(),
-			resourcePrimKey, objectDefinition,
-			_getObjectEntryFolderId(cmsMigrationContext, journalArticle),
+			resourcePrimKey, objectDefinition, objectEntryFolderId,
 			externalReferenceCode, journalArticle.getUserId(),
 			journalArticle.getDefaultLanguageId(), values,
 			LocalizedValuesUtil.toLanguageIdMap(
 				journalArticle.getFriendlyURLMap()),
-			journalArticle.getCreateDate(), journalArticle.getModifiedDate(),
-			approved);
+			journalArticle.getCreateDate(), null, approved);
 
 		_writeRepeatableGroupItems(
-			approved, cmsMigrationContext, objectEntry, objectEntryValues);
+			approved, cmsMigrationContext, modifiedDate, objectEntry,
+			objectEntryValues);
+
+		objectEntry = _objectEntryLocalService.getObjectEntry(
+			objectEntry.getObjectEntryId());
+
+		objectEntry.setModifiedDate(modifiedDate);
+
+		objectEntry = _objectEntryLocalService.updateObjectEntry(objectEntry);
+
+		cmsMigrationContext.addObjectEntry(
+			JournalArticle.class.getName(), resourcePrimKey, objectEntry);
 
 		cmsMigrationContext.getCMSMigrationReport(
 		).increment(
@@ -342,6 +383,45 @@ public class JournalArticleMigrator {
 		return jsonObject.toString();
 	}
 
+	private boolean _isRepeatableFieldsFormUnchanged(
+		CMSMigrationContext cmsMigrationContext, DDMStructure ddmStructure,
+		ObjectEntry objectEntry) {
+
+		DDMForm ddmForm = ddmStructure.getFullHierarchyDDMForm();
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		for (DDMFormField ddmFormField :
+				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+					ddmForm.getDDMFormFields())) {
+
+			if (!CMSMigrationDDMFormFieldUtil.isJSONField(ddmFormField)) {
+				continue;
+			}
+
+			String json = GetterUtil.getString(
+				values.get(
+					CMSMigrationDDMFormFieldUtil.getObjectFieldName(
+						ddmFormField)));
+
+			boolean jsonArray = false;
+
+			if (Validator.isNotNull(json) && JSONUtil.isJSONArray(json)) {
+				jsonArray = true;
+			}
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.getRepeatableGroupObjectRelationship(
+					ddmFormField, objectEntry.getObjectDefinitionId());
+
+			if ((objectRelationship == null) != jsonArray) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private void _putSmallImageValues(
 		CMSMigrationContext cmsMigrationContext, String externalReferenceCode,
 		JournalArticle journalArticle, ObjectDefinition objectDefinition,
@@ -403,7 +483,8 @@ public class JournalArticleMigrator {
 
 	private void _writeRepeatableGroupItems(
 			boolean approved, CMSMigrationContext cmsMigrationContext,
-			ObjectEntry objectEntry, ObjectEntryValues objectEntryValues)
+			Date modifiedDate, ObjectEntry objectEntry,
+			ObjectEntryValues objectEntryValues)
 		throws PortalException {
 
 		Map<DDMFormField, List<ObjectEntryValues>> repeatableGroupItemsMap =
@@ -418,12 +499,12 @@ public class JournalArticleMigrator {
 			List<ObjectEntry> itemObjectEntries =
 				_objectEntryWriter.writeRepeatableGroupItems(
 					approved, cmsMigrationContext, entry.getKey(),
-					itemObjectEntryValuesList, objectEntry);
+					itemObjectEntryValuesList, modifiedDate, objectEntry);
 
 			for (int i = 0; i < itemObjectEntries.size(); i++) {
 				_writeRepeatableGroupItems(
-					approved, cmsMigrationContext, itemObjectEntries.get(i),
-					itemObjectEntryValuesList.get(i));
+					approved, cmsMigrationContext, modifiedDate,
+					itemObjectEntries.get(i), itemObjectEntryValuesList.get(i));
 			}
 		}
 	}
@@ -439,6 +520,7 @@ public class JournalArticleMigrator {
 	private final JSONFactory _jsonFactory;
 	private final Language _language;
 	private final ObjectDefinitionMigrator _objectDefinitionMigrator;
+	private final ObjectEntryLocalService _objectEntryLocalService;
 	private final ObjectEntryWriter _objectEntryWriter;
 
 }
