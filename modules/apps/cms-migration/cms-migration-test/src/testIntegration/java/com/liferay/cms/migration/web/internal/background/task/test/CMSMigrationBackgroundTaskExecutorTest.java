@@ -1027,6 +1027,111 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 	}
 
 	@Test
+	public void testExecuteWithRepeatableDDMFormFieldAsJSONAndThenAsRepeatableGroup()
+		throws Exception {
+
+		DDMForm ddmForm = DDMFormTestUtil.createDDMForm();
+
+		ddmForm.addDDMFormField(
+			DDMFormTestUtil.createDDMFormField(
+				"text", "text", DDMFormFieldTypeConstants.TEXT, "string", false,
+				true, false));
+
+		DDMStructure ddmStructure = DDMStructureTestUtil.addStructure(
+			_group.getGroupId(), JournalArticle.class.getName(), ddmForm);
+
+		DDMTemplate ddmTemplate = DDMTemplateTestUtil.addTemplate(
+			_group.getGroupId(), _portal.getClassNameId(DDMStructure.class),
+			ddmStructure.getStructureId(),
+			_portal.getClassNameId(JournalArticle.class),
+			TemplateConstants.LANG_TYPE_FTL,
+			"<#list text.getSiblings() as item>[${item.getData()}]</#list>",
+			LocaleUtil.US);
+
+		String[] texts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+
+		JournalArticle journalArticle =
+			JournalTestUtil.addArticleWithXMLContent(
+				_group.getGroupId(), _getTextsContent(texts),
+				ddmStructure.getStructureKey(), null);
+
+		_assertSuccessful(_execute(_group.getGroupId(), false));
+
+		ObjectEntry objectEntry = _getObjectEntry(journalArticle);
+
+		Map<String, Serializable> values = objectEntry.getValues();
+
+		String text = GetterUtil.getString(values.get("text"));
+
+		Assert.assertTrue(text, text.contains(texts[0]));
+
+		String[] newTexts = {
+			RandomTestUtil.randomString(), RandomTestUtil.randomString()
+		};
+
+		journalArticle = JournalTestUtil.updateArticle(
+			journalArticle, RandomTestUtil.randomString(),
+			_getTextsContent(newTexts), false, true,
+			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
+
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), true, false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains(
+				"as a repeatable group and removed the JSON field text"));
+
+		Assert.assertNull(
+			_objectFieldLocalService.fetchObjectField(
+				objectEntry.getObjectDefinitionId(), "text"));
+
+		List<ObjectEntry> itemObjectEntries = _getItemObjectEntries(
+			objectEntry);
+
+		Assert.assertEquals(
+			itemObjectEntries.toString(), newTexts.length,
+			itemObjectEntries.size());
+
+		String content = _render(ddmTemplate, objectEntry);
+
+		Assert.assertTrue(
+			content,
+			content.contains(
+				StringBundler.concat(
+					"[", newTexts[0], "][", newTexts[1], "]")));
+		Assert.assertFalse(content, content.contains(texts[0]));
+
+		backgroundTaskResult = _execute(
+			_group.getGroupId(), false, false, true);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		JSONObject jsonObject = JSONFactoryUtil.createJSONObject(
+			backgroundTaskResult.getStatusMessage());
+
+		JSONObject countsJSONObject = jsonObject.getJSONObject("counts");
+
+		Assert.assertEquals(
+			countsJSONObject.toString(), 1,
+			countsJSONObject.getLong("journal-articles"));
+
+		objectEntry = _getObjectEntry(journalArticle);
+
+		values = objectEntry.getValues();
+
+		text = GetterUtil.getString(values.get("text"));
+
+		Assert.assertTrue(text, text.contains(newTexts[0]));
+	}
+
+	@Test
 	public void testExecuteWithRepeatableDDMFormFieldAsRepeatableGroupAndResourcePermissions()
 		throws Exception {
 
