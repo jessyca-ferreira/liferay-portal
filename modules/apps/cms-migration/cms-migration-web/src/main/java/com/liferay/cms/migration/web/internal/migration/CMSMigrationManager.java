@@ -18,6 +18,7 @@ import com.liferay.cms.migration.web.internal.migration.reference.HTMLReferenceR
 import com.liferay.cms.migration.web.internal.migration.reference.LayoutReferenceRewriter;
 import com.liferay.cms.migration.web.internal.migration.reference.PortletReferenceRewriter;
 import com.liferay.cms.migration.web.internal.migration.reference.SiteNavigationMenuItemReferenceRewriter;
+import com.liferay.cms.migration.web.internal.migration.structure.StructureEditPageResetter;
 import com.liferay.cms.migration.web.internal.migration.template.DisplayPageTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.JournalTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.WidgetTemplateMigrator;
@@ -79,6 +80,7 @@ public class CMSMigrationManager {
 		PortletReferenceRewriter portletReferenceRewriter,
 		SiteNavigationMenuItemReferenceRewriter
 			siteNavigationMenuItemReferenceRewriter,
+		StructureEditPageResetter structureEditPageResetter,
 		WidgetTemplateMigrator widgetTemplateMigrator) {
 
 		_assetEntryLocalService = assetEntryLocalService;
@@ -103,6 +105,7 @@ public class CMSMigrationManager {
 		_portletReferenceRewriter = portletReferenceRewriter;
 		_siteNavigationMenuItemReferenceRewriter =
 			siteNavigationMenuItemReferenceRewriter;
+		_structureEditPageResetter = structureEditPageResetter;
 		_widgetTemplateMigrator = widgetTemplateMigrator;
 	}
 
@@ -186,6 +189,8 @@ public class CMSMigrationManager {
 
 			_objectEntryScopeMigrator.migrateAll(cmsMigrationContext);
 		}
+
+		_structureEditPageResetter.reset(cmsMigrationContext);
 
 		_rewriteContentLinks(cmsMigrationContext);
 
@@ -440,6 +445,7 @@ public class CMSMigrationManager {
 	private final PortletReferenceRewriter _portletReferenceRewriter;
 	private final SiteNavigationMenuItemReferenceRewriter
 		_siteNavigationMenuItemReferenceRewriter;
+	private final StructureEditPageResetter _structureEditPageResetter;
 	private final WidgetTemplateMigrator _widgetTemplateMigrator;
 
 }

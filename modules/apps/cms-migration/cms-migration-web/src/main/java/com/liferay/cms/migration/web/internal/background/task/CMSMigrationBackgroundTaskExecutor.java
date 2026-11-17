@@ -36,6 +36,7 @@ import com.liferay.cms.migration.web.internal.migration.reference.SiteNavigation
 import com.liferay.cms.migration.web.internal.migration.reference.WidgetTemplateScriptRewriter;
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionMigrator;
 import com.liferay.cms.migration.web.internal.migration.structure.ObjectDefinitionScopeConverter;
+import com.liferay.cms.migration.web.internal.migration.structure.StructureEditPageResetter;
 import com.liferay.cms.migration.web.internal.migration.template.DisplayPageTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.JournalTemplateMigrator;
 import com.liferay.cms.migration.web.internal.migration.template.WidgetTemplateMigrator;
@@ -392,6 +393,11 @@ public class CMSMigrationBackgroundTaskExecutor
 					_siteNavigationMenuItemLocalService,
 					_siteNavigationMenuLocalService);
 
+		StructureEditPageResetter structureEditPageResetter =
+			new StructureEditPageResetter(
+				_groupLocalService, _layoutLocalService,
+				_layoutPageTemplateEntryLocalService, _portal);
+
 		return new CMSMigrationManager(
 			_assetEntryLocalService, assetListEntryReferenceRewriter,
 			blogsEntryMigrator, cmsMigrationBackgroundTaskStatusMessageSender,
@@ -402,7 +408,8 @@ public class CMSMigrationBackgroundTaskExecutor
 			layoutReferenceRewriter, _objectDefinitionLocalService,
 			_objectEntryLocalService, objectEntryScopeMigrator,
 			_objectFieldLocalService, portletReferenceRewriter,
-			siteNavigationMenuItemReferenceRewriter, widgetTemplateMigrator);
+			siteNavigationMenuItemReferenceRewriter, structureEditPageResetter,
+			widgetTemplateMigrator);
 	}
 
 	@Reference
