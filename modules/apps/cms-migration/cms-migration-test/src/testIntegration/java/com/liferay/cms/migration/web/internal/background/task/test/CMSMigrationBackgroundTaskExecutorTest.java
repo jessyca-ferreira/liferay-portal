@@ -1307,7 +1307,35 @@ public class CMSMigrationBackgroundTaskExecutorTest {
 			_getTextsContent(newTexts), false, true,
 			ServiceContextTestUtil.getServiceContext(_group.getGroupId()));
 
-		_assertSuccessful(_execute(_group.getGroupId(), false));
+		BackgroundTaskResult backgroundTaskResult = _execute(
+			_group.getGroupId(), false);
+
+		_assertSuccessful(backgroundTaskResult);
+
+		String statusMessage = backgroundTaskResult.getStatusMessage();
+
+		Assert.assertTrue(
+			statusMessage,
+			statusMessage.contains("as JSON and removed the repeatable group"));
+
+		List<ObjectRelationship> objectRelationships =
+			_objectRelationshipLocalService.getObjectRelationships(
+				objectEntry.getObjectDefinitionId(), true);
+
+		Assert.assertEquals(
+			objectRelationships.toString(), 0, objectRelationships.size());
+
+		ObjectEntry itemObjectEntry = itemObjectEntries.get(0);
+
+		Assert.assertNull(
+			_objectDefinitionLocalService.fetchObjectDefinition(
+				itemObjectEntry.getObjectDefinitionId()));
+
+		for (ObjectEntry curItemObjectEntry : itemObjectEntries) {
+			Assert.assertNull(
+				_objectEntryLocalService.fetchObjectEntry(
+					curItemObjectEntry.getObjectEntryId()));
+		}
 
 		String content = _render(ddmTemplate, objectEntry);
 
