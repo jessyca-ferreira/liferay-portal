@@ -75,6 +75,16 @@ public class ObjectEntryWriter {
 		_userLocalService = userLocalService;
 	}
 
+	public void deleteRepeatableGroupItems(
+			CMSMigrationContext cmsMigrationContext, DDMFormField ddmFormField,
+			ObjectEntry objectEntry, ObjectRelationship objectRelationship)
+		throws PortalException {
+
+		_deleteRepeatableGroupItems(
+			ddmFormField, cmsMigrationContext.getDepotGroupId(), 0, objectEntry,
+			objectRelationship.getObjectDefinitionId2());
+	}
+
 	public ObjectEntry fetchRestoredObjectEntry(
 			CMSMigrationContext cmsMigrationContext,
 			String externalReferenceCode, ObjectDefinition objectDefinition)
@@ -349,7 +359,17 @@ public class ObjectEntryWriter {
 				_objectEntryLocalService.updateObjectEntry(itemObjectEntry));
 		}
 
-		int index = itemObjectEntryValuesList.size();
+		_deleteRepeatableGroupItems(
+			ddmFormField, depotGroupId, itemObjectEntryValuesList.size(),
+			objectEntry, repeatableGroupObjectDefinitionId);
+
+		return itemObjectEntries;
+	}
+
+	private void _deleteRepeatableGroupItems(
+			DDMFormField ddmFormField, long depotGroupId, int index,
+			ObjectEntry objectEntry, long repeatableGroupObjectDefinitionId)
+		throws PortalException {
 
 		ObjectEntry itemObjectEntry = null;
 
@@ -368,8 +388,6 @@ public class ObjectEntryWriter {
 			index++;
 		}
 		while (itemObjectEntry != null);
-
-		return itemObjectEntries;
 	}
 
 	private String _getAvailableDefaultLanguageId(
