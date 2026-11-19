@@ -215,7 +215,11 @@ public class JournalArticleMigrator {
 			approved, cmsMigrationContext, modifiedDate, objectEntry,
 			objectEntryValues);
 
-		if (wroteRepeatableGroupItems) {
+		boolean deletedRepeatableGroupItems =
+			_deleteLeftoverRepeatableGroupItems(
+				cmsMigrationContext, ddmStructure, objectEntry);
+
+		if (wroteRepeatableGroupItems || deletedRepeatableGroupItems) {
 			objectEntry = _objectEntryLocalService.getObjectEntry(
 				objectEntry.getObjectEntryId());
 
@@ -286,6 +290,36 @@ public class JournalArticleMigrator {
 				attributesMap, ddmFormFieldValue.getNestedDDMFormFieldValues(),
 				unavailableLanguageIds);
 		}
+	}
+
+	private boolean _deleteLeftoverRepeatableGroupItems(
+			CMSMigrationContext cmsMigrationContext, DDMStructure ddmStructure,
+			ObjectEntry objectEntry)
+		throws PortalException {
+
+		boolean deletedRepeatableGroupItems = false;
+
+		DDMForm ddmForm = ddmStructure.getFullHierarchyDDMForm();
+
+		for (DDMFormField ddmFormField :
+				CMSMigrationDDMFormFieldUtil.getLeafDDMFormFields(
+					ddmForm.getDDMFormFields())) {
+
+			ObjectRelationship objectRelationship =
+				cmsMigrationContext.
+					getLeftoverRepeatableGroupObjectRelationship(
+						ddmFormField, objectEntry.getObjectDefinitionId());
+
+			if (objectRelationship != null) {
+				_objectEntryWriter.deleteRepeatableGroupItems(
+					cmsMigrationContext, ddmFormField, objectEntry,
+					objectRelationship);
+
+				deletedRepeatableGroupItems = true;
+			}
+		}
+
+		return deletedRepeatableGroupItems;
 	}
 
 	private DDMFormValues _getDDMFormValues(JournalArticle journalArticle) {

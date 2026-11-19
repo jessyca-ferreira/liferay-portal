@@ -103,6 +103,19 @@ public class CMSMigrationContext {
 			objectField, repeatableFieldDescription);
 	}
 
+	public void addLeftoverRepeatableGroupObjectRelationship(
+		DDMFormField ddmFormField, ObjectRelationship objectRelationship,
+		String repeatableFieldDescription) {
+
+		_leftoverRepeatableGroupDescriptions.put(
+			objectRelationship, repeatableFieldDescription);
+		_leftoverRepeatableGroupObjectRelationships.put(
+			_getKey(
+				ddmFormField.getName(),
+				objectRelationship.getObjectDefinitionId1()),
+			objectRelationship);
+	}
+
 	public void addObjectDefinition(
 		String className, long classTypeId, ObjectDefinition objectDefinition) {
 
@@ -143,6 +156,11 @@ public class CMSMigrationContext {
 
 	public void clearLeftoverJSONObjectFieldDescriptions() {
 		_leftoverJSONObjectFieldDescriptions.clear();
+	}
+
+	public void clearLeftoverRepeatableGroupDescriptions() {
+		_leftoverRepeatableGroupDescriptions.clear();
+		_leftoverRepeatableGroupObjectRelationships.clear();
 	}
 
 	public ReferenceScope getAssetListEntryReferenceScope(
@@ -186,6 +204,19 @@ public class CMSMigrationContext {
 
 	public Map<ObjectField, String> getLeftoverJSONObjectFieldDescriptions() {
 		return _leftoverJSONObjectFieldDescriptions;
+	}
+
+	public Map<ObjectRelationship, String>
+		getLeftoverRepeatableGroupDescriptions() {
+
+		return _leftoverRepeatableGroupDescriptions;
+	}
+
+	public ObjectRelationship getLeftoverRepeatableGroupObjectRelationship(
+		DDMFormField ddmFormField, long objectDefinitionId) {
+
+		return _leftoverRepeatableGroupObjectRelationships.get(
+			_getKey(ddmFormField.getName(), objectDefinitionId));
 	}
 
 	public ObjectDefinition getObjectDefinition(
@@ -335,6 +366,10 @@ public class CMSMigrationContext {
 	private final Map<Long, Long> _layoutPageTemplateEntryIds = new HashMap<>();
 	private final Map<ObjectField, String>
 		_leftoverJSONObjectFieldDescriptions = new LinkedHashMap<>();
+	private final Map<ObjectRelationship, String>
+		_leftoverRepeatableGroupDescriptions = new LinkedHashMap<>();
+	private final Map<String, ObjectRelationship>
+		_leftoverRepeatableGroupObjectRelationships = new HashMap<>();
 	private final boolean _migrateBlogsEntries;
 	private final boolean _migrateFileEntries;
 	private final boolean _migrateJournalArticles;

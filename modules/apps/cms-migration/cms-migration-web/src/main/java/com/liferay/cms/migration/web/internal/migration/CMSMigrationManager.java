@@ -119,6 +119,8 @@ public class CMSMigrationManager {
 
 		_objectDefinitionMigrator.deleteUnusedLeftoverJSONObjectFields(
 			cmsMigrationContext);
+		_objectDefinitionMigrator.deleteUnusedLeftoverRepeatableGroups(
+			cmsMigrationContext);
 
 		_structureEditPageResetter.reset(cmsMigrationContext);
 	}

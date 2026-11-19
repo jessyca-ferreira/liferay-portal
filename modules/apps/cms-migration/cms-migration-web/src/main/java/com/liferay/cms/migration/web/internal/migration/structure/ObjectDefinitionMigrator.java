@@ -207,6 +207,64 @@ public class ObjectDefinitionMigrator {
 		cmsMigrationContext.clearLeftoverJSONObjectFieldDescriptions();
 	}
 
+	public void deleteUnusedLeftoverRepeatableGroups(
+		CMSMigrationContext cmsMigrationContext) {
+
+		Map<ObjectRelationship, String> leftoverRepeatableGroupDescriptions =
+			cmsMigrationContext.getLeftoverRepeatableGroupDescriptions();
+
+		for (Map.Entry<ObjectRelationship, String> entry :
+				leftoverRepeatableGroupDescriptions.entrySet()) {
+
+			ObjectRelationship objectRelationship = entry.getKey();
+
+			String prefix = StringBundler.concat(
+				"Migrated ", entry.getValue(), " as JSON and ");
+
+			try {
+				int objectEntriesCount =
+					_objectEntryLocalService.getObjectEntriesCount(
+						objectRelationship.getObjectDefinitionId2());
+
+				if (objectEntriesCount > 0) {
+					cmsMigrationContext.getCMSMigrationReport(
+					).addWarning(
+						StringBundler.concat(
+							prefix, "kept the repeatable group ",
+							objectRelationship.getName(),
+							" that a previous migration added because some ",
+							"entries still have items in it")
+					);
+
+					continue;
+				}
+
+				_deleteRepeatableGroup(objectRelationship);
+
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						prefix, "deleted the repeatable group ",
+						objectRelationship.getName(),
+						" that a previous migration added because no entry ",
+						"has items in it anymore")
+				);
+			}
+			catch (Exception exception) {
+				cmsMigrationContext.getCMSMigrationReport(
+				).addWarning(
+					StringBundler.concat(
+						prefix, "kept the repeatable group ",
+						objectRelationship.getName(),
+						" that a previous migration added because it could ",
+						"not be deleted: ", exception.getMessage())
+				);
+			}
+		}
+
+		cmsMigrationContext.clearLeftoverRepeatableGroupDescriptions();
+	}
+
 	public ObjectDefinition getExternalVideoObjectDefinition(
 			CMSMigrationContext cmsMigrationContext)
 		throws PortalException {
@@ -304,6 +362,9 @@ public class ObjectDefinitionMigrator {
 			CMSMigrationConstants.EXTERNAL_REFERENCE_CODE_PREFIX_DDM_STRUCTURE +
 				ddmStructure.getStructureId(),
 			objectFields);
+
+		_registerLeftoverRepeatableGroups(
+			cmsMigrationContext, ddmFormFields, ddmStructure, objectDefinition);
 
 		_addRepeatableGroups(
 			cmsMigrationContext, ddmStructure, 0, listTypeKey, objectDefinition,
@@ -576,6 +637,37 @@ public class ObjectDefinitionMigrator {
 		objectFieldSetting.setValue(value);
 
 		return objectFieldSetting;
+	}
+
+	private void _deleteRepeatableGroup(ObjectRelationship objectRelationship)
+		throws PortalException {
+
+		long repeatableGroupObjectDefinitionId =
+			objectRelationship.getObjectDefinitionId2();
+
+		for (ObjectRelationship nestedObjectRelationship :
+				_objectRelationshipLocalService.getObjectRelationships(
+					repeatableGroupObjectDefinitionId, true)) {
+
+			_deleteRepeatableGroup(nestedObjectRelationship);
+		}
+
+		if (objectRelationship.isEdge()) {
+			objectRelationship =
+				_objectRelationshipLocalService.updateObjectRelationship(
+					objectRelationship.getExternalReferenceCode(),
+					objectRelationship.getObjectRelationshipId(),
+					objectRelationship.getParameterObjectFieldId(),
+					objectRelationship.getDeletionType(),
+					objectRelationship.getDescriptionMap(), false,
+					objectRelationship.getLabelMap(), null);
+		}
+
+		_objectRelationshipLocalService.deleteObjectRelationship(
+			objectRelationship);
+
+		_objectDefinitionLocalService.deleteObjectDefinition(
+			repeatableGroupObjectDefinitionId);
 	}
 
 	private void _disallowStandaloneObjectEntries(
@@ -1198,6 +1290,39 @@ public class ObjectDefinitionMigrator {
 		}
 
 		return ddmFormFields;
+	}
+
+	private void _registerLeftoverRepeatableGroups(
+		CMSMigrationContext cmsMigrationContext,
+		List<DDMFormField> ddmFormFields, DDMStructure ddmStructure,
+		ObjectDefinition objectDefinition) {
+
+		for (DDMFormField ddmFormField : ddmFormFields) {
+			if (!CMSMigrationDDMFormFieldUtil.isJSONField(ddmFormField)) {
+				continue;
+			}
+
+			ObjectRelationship objectRelationship =
+				_objectRelationshipLocalService.
+					fetchObjectRelationshipByExternalReferenceCode(
+						CMSMigrationDDMFormFieldUtil.
+							getRepeatableGroupExternalReferenceCode(
+								ddmFormField,
+								objectDefinition.getExternalReferenceCode()),
+						cmsMigrationContext.getCompanyId(),
+						objectDefinition.getObjectDefinitionId());
+
+			if (objectRelationship != null) {
+				cmsMigrationContext.
+					addLeftoverRepeatableGroupObjectRelationship(
+						ddmFormField, objectRelationship,
+						StringBundler.concat(
+							"the repeatable field ",
+							ddmFormField.getFieldReference(),
+							" of the structure ",
+							ddmStructure.getStructureKey()));
+			}
+		}
 	}
 
 	private static final int _NAME_MAX_LENGTH = 41;
